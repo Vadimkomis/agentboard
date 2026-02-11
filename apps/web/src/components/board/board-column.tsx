@@ -22,6 +22,7 @@ export function BoardColumn({
 
   return (
     <div
+      ref={setNodeRef}
       className={cn(
         "flex-shrink-0 w-72 flex flex-col rounded-xl border border-[var(--border)] bg-[var(--muted)]",
         isOver && "border-[var(--primary)]/50"
@@ -43,7 +44,7 @@ export function BoardColumn({
           </svg>
         </button>
       </div>
-      <div ref={setNodeRef} className="flex-1 p-2 space-y-2 overflow-y-auto min-h-[100px]">
+      <div className="flex-1 p-2 space-y-2 overflow-y-auto min-h-[100px]">
         <SortableContext
           items={tickets.map((t) => t.id)}
           strategy={verticalListSortingStrategy}

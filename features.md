@@ -33,7 +33,7 @@ Source of truth for all features in the project. Each feature is marked with its
 | Feature | Status | Details |
 |---------|--------|---------|
 | Board with customizable columns | done | Each column maps to a ticket status |
-| Drag-and-drop ticket movement | done | @dnd-kit, updates position + status on server |
+| Drag-and-drop ticket movement | done | @dnd-kit with pointerWithin collision detection, full-column drop targets, updates position + status on server |
 | Real-time board sync (SSE) | done | Redis pub/sub -> SSE endpoint -> React useSSE hook |
 | Multi-tab / multi-user live updates | done | All connected clients see changes instantly |
 
