@@ -57,7 +57,7 @@ Source of truth for all features in the project. Each feature is marked with its
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Interactive planning conversation | done | On ticket creation, PM agent starts a chat to refine requirements |
+| Interactive planning conversation | done | On ticket creation, PM agent starts a chat to refine requirements; API errors shown in chat |
 | PM streaming replies | done | Claude Sonnet streaming via SSE deltas for real-time typing effect |
 | Finalize plan | done | User clicks "Finalize Plan", PM outputs structured triage classification |
 | Reopen planning | done | Move ticket from "ready" back to "planning", conversation preserved |

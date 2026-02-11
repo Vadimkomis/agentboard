@@ -237,9 +237,7 @@ async def _run_planning_reply(
         logger.error(
             "planning_reply_failed", ticket_id=str(ticket.id), error=str(e)
         )
-        assistant_msg.content = (
-            assistant_msg.content or "Sorry, an error occurred."
-        )
+        assistant_msg.content = f"Error: {e}"
         assistant_msg.is_streaming = False
         await db.commit()
 

@@ -89,7 +89,14 @@ Default branch: {project.default_branch}
                 "messages": [{"role": "user", "content": user_content}],
             },
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            detail = resp.text
+            try:
+                body = resp.json()
+                detail = body.get("error", {}).get("message", detail)
+            except Exception:
+                pass
+            raise ValueError(detail)
         data = resp.json()
 
     text = data["content"][0]["text"]
@@ -202,7 +209,15 @@ async def generate_planning_reply(
                 "messages": conversation_history,
             },
         ) as resp:
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                await resp.aread()
+                detail = resp.text
+                try:
+                    body = resp.json()
+                    detail = body.get("error", {}).get("message", detail)
+                except Exception:
+                    pass
+                raise ValueError(detail)
             full_text = ""
             async for line in resp.aiter_lines():
                 if not line.startswith("data: "):
@@ -257,7 +272,14 @@ async def finalize_planning(
                 "messages": messages,
             },
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            detail = resp.text
+            try:
+                body = resp.json()
+                detail = body.get("error", {}).get("message", detail)
+            except Exception:
+                pass
+            raise ValueError(detail)
         data = resp.json()
 
     text = data["content"][0]["text"]
