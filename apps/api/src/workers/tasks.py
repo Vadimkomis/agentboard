@@ -3,6 +3,7 @@
 import uuid
 
 import structlog
+from arq.connections import RedisSettings
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -333,4 +334,4 @@ class WorkerSettings:
         start_planning_task,
         generate_pm_reply_task,
     ]
-    redis_settings = settings.redis_url
+    redis_settings = RedisSettings.from_dsn(settings.redis_url)
