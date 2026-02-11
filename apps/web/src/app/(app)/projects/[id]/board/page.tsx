@@ -10,6 +10,7 @@ import { useBackendToken } from "@/hooks/use-backend-token";
 import { useSSE } from "@/hooks/use-sse";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
+import { usePlanningStore } from "@/lib/planning-store";
 import { KanbanBoard } from "@/components/board/kanban-board";
 import Link from "next/link";
 
@@ -22,9 +23,31 @@ export default function BoardPage() {
   const { data: board, isLoading: boardLoading } = useBoard(projectId);
   const { data: tickets, isLoading: ticketsLoading } = useTickets(projectId);
   const qc = useQueryClient();
+  const { appendDelta, completeMessage } = usePlanningStore();
 
   const handleSSEEvent = useCallback(
     (event: { type: string; data: Record<string, unknown> }) => {
+      // Planning conversation events
+      if (event.type === "planning_message_new") {
+        const ticketId = event.data.ticket_id as string;
+        qc.invalidateQueries({
+          queryKey: ["planning-messages", projectId, ticketId],
+        });
+      } else if (event.type === "planning_message_delta") {
+        const messageId = event.data.message_id as string;
+        const delta = event.data.content_delta as string;
+        appendDelta(messageId, delta);
+      } else if (event.type === "planning_message_complete") {
+        const messageId = event.data.message_id as string;
+        const ticketId = event.data.ticket_id as string;
+        completeMessage(messageId);
+        qc.invalidateQueries({
+          queryKey: ["planning-messages", projectId, ticketId],
+        });
+      } else if (event.type === "plan_finalized") {
+        qc.invalidateQueries({ queryKey: ["tickets", projectId] });
+      }
+
       // Refetch tickets on any board-related event
       if (
         [
@@ -41,7 +64,7 @@ export default function BoardPage() {
         qc.invalidateQueries({ queryKey: ["tickets", projectId] });
       }
     },
-    [qc, projectId]
+    [qc, projectId, appendDelta, completeMessage]
   );
 
   useSSE(projectId, token, handleSSEEvent);

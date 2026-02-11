@@ -1,16 +1,19 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type { Ticket, Execution } from "@/lib/types";
+import type { Execution } from "@/lib/types";
 import { useBoardStore } from "@/lib/board-store";
 import { useApproveTicket } from "@/hooks/use-tickets";
+import { useReopenPlan } from "@/hooks/use-planning";
 import { useBackendToken } from "@/hooks/use-backend-token";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
+import { PlanningChat } from "./planning-chat";
 
 const statusLabels: Record<string, { label: string; color: string }> = {
   backlog: { label: "Backlog", color: "bg-gray-500/20 text-gray-400" },
+  planning: { label: "Planning", color: "bg-amber-500/20 text-amber-400" },
   triaging: { label: "Triaging", color: "bg-yellow-500/20 text-yellow-400" },
   ready: { label: "Ready", color: "bg-blue-500/20 text-blue-400" },
   in_progress: { label: "In Progress", color: "bg-indigo-500/20 text-indigo-400" },
@@ -24,6 +27,7 @@ export function TicketDetailPanel({ projectId }: { projectId: string }) {
   const { selectedTicket: ticket, detailOpen, closeDetail } = useBoardStore();
   const { token } = useBackendToken();
   const approve = useApproveTicket(projectId);
+  const reopen = useReopenPlan(projectId, ticket?.id ?? "");
 
   const { data: executions } = useQuery({
     queryKey: ["executions", projectId, ticket?.id],
@@ -46,6 +50,15 @@ export function TicketDetailPanel({ projectId }: { projectId: string }) {
       closeDetail();
     } catch {
       toast.error("Failed to approve ticket");
+    }
+  };
+
+  const handleReplan = async () => {
+    try {
+      await reopen.mutateAsync();
+      toast.success("Planning reopened");
+    } catch {
+      toast.error("Failed to reopen planning");
     }
   };
 
@@ -88,6 +101,14 @@ export function TicketDetailPanel({ projectId }: { projectId: string }) {
               <p className="text-sm text-[var(--secondary-foreground)] whitespace-pre-wrap">
                 {ticket.description}
               </p>
+            </Section>
+          )}
+
+          {ticket.status === "planning" && (
+            <Section title="Planning Conversation">
+              <div className="h-[400px] flex flex-col">
+                <PlanningChat projectId={projectId} ticketId={ticket.id} />
+              </div>
             </Section>
           )}
 
@@ -148,13 +169,20 @@ export function TicketDetailPanel({ projectId }: { projectId: string }) {
           )}
 
           {ticket.status === "ready" && (
-            <div className="mt-6">
+            <div className="mt-6 space-y-2">
               <button
                 onClick={handleApprove}
                 disabled={approve.isPending}
                 className="w-full px-4 py-3 rounded-lg bg-[var(--primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 {approve.isPending ? "Starting..." : "Approve & Execute"}
+              </button>
+              <button
+                onClick={handleReplan}
+                disabled={reopen.isPending}
+                className="w-full px-4 py-2.5 rounded-lg border border-[var(--border)] text-[var(--muted-foreground)] text-sm font-medium hover:text-[var(--foreground)] hover:border-[var(--foreground)] transition-colors disabled:opacity-50"
+              >
+                {reopen.isPending ? "Reopening..." : "Re-plan"}
               </button>
             </div>
           )}

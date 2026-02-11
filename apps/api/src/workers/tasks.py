@@ -3,7 +3,6 @@
 import uuid
 
 import structlog
-from arq import cron
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,12 +10,13 @@ from src.config import settings
 from src.database import async_session
 from src.models.execution import Execution
 from src.models.notification import Notification
+from src.models.planning_message import PlanningMessage
 from src.models.project import Project
 from src.models.ticket import Ticket
 from src.models.user import User
 from src.services.encryption import decrypt_key
 from src.services.event_bus import publish_event
-from src.services.pm_agent import triage_ticket
+from src.services.pm_agent import generate_planning_reply, triage_ticket
 
 logger = structlog.get_logger()
 
@@ -155,8 +155,182 @@ async def execute_agent_task(ctx: dict, execution_id: str) -> None:
             await db.commit()
 
 
+async def _run_planning_reply(
+    db: AsyncSession, ticket: Ticket, project: Project, user: User
+) -> None:
+    """Shared logic for generating a PM planning reply with streaming."""
+    anthropic_key = decrypt_key(user.encrypted_anthropic_key)
+
+    # Load conversation history
+    msgs_result = await db.execute(
+        select(PlanningMessage)
+        .where(PlanningMessage.ticket_id == ticket.id)
+        .order_by(PlanningMessage.sequence)
+    )
+    messages = msgs_result.scalars().all()
+    conversation_history = [
+        {"role": msg.role, "content": msg.content} for msg in messages
+    ]
+
+    # If no messages yet, add an initial user message with the ticket info
+    if not conversation_history:
+        conversation_history = [
+            {
+                "role": "user",
+                "content": (
+                    f"I just created a ticket:\n\n"
+                    f"**{ticket.title}**\n\n"
+                    f"{ticket.description or 'No description provided'}\n\n"
+                    f"Please analyze this and help me plan the implementation."
+                ),
+            }
+        ]
+
+    # Get next sequence number
+    max_seq = max((m.sequence for m in messages), default=0)
+    next_seq = max_seq + 1
+
+    # Create streaming assistant message
+    assistant_msg = PlanningMessage(
+        ticket_id=ticket.id,
+        sequence=next_seq,
+        role="assistant",
+        content="",
+        is_streaming=True,
+    )
+    db.add(assistant_msg)
+    await db.commit()
+    await db.refresh(assistant_msg)
+
+    await publish_event(
+        f"project:{ticket.project_id}",
+        "planning_message_new",
+        {
+            "ticket_id": str(ticket.id),
+            "message_id": str(assistant_msg.id),
+            "sequence": assistant_msg.sequence,
+            "role": "assistant",
+            "is_streaming": True,
+        },
+    )
+
+    async def on_token(token: str) -> None:
+        await publish_event(
+            f"project:{ticket.project_id}",
+            "planning_message_delta",
+            {
+                "ticket_id": str(ticket.id),
+                "message_id": str(assistant_msg.id),
+                "content_delta": token,
+            },
+        )
+
+    try:
+        full_text = await generate_planning_reply(
+            ticket, project, conversation_history, anthropic_key, on_token
+        )
+        assistant_msg.content = full_text
+        assistant_msg.is_streaming = False
+        await db.commit()
+    except Exception as e:
+        logger.error(
+            "planning_reply_failed", ticket_id=str(ticket.id), error=str(e)
+        )
+        assistant_msg.content = (
+            assistant_msg.content or "Sorry, an error occurred."
+        )
+        assistant_msg.is_streaming = False
+        await db.commit()
+
+    await publish_event(
+        f"project:{ticket.project_id}",
+        "planning_message_complete",
+        {
+            "ticket_id": str(ticket.id),
+            "message_id": str(assistant_msg.id),
+        },
+    )
+
+
+async def start_planning_task(ctx: dict, ticket_id: str) -> None:
+    """Called on ticket creation. PM sends first planning message."""
+    async with async_session() as db:
+        result = await db.execute(
+            select(Ticket).where(Ticket.id == uuid.UUID(ticket_id))
+        )
+        ticket = result.scalar_one_or_none()
+        if not ticket:
+            logger.warning("start_planning_ticket_not_found", ticket_id=ticket_id)
+            return
+
+        proj_result = await db.execute(
+            select(Project).where(Project.id == ticket.project_id)
+        )
+        project = proj_result.scalar_one_or_none()
+        if not project:
+            return
+
+        user_result = await db.execute(
+            select(User).where(User.id == ticket.created_by_id)
+        )
+        user = user_result.scalar_one_or_none()
+        if not user or not user.encrypted_anthropic_key:
+            logger.warning("planning_no_api_key", ticket_id=ticket_id)
+            ticket.status = "backlog"
+            await db.commit()
+            return
+
+        try:
+            await _run_planning_reply(db, ticket, project, user)
+        except Exception as e:
+            logger.error(
+                "start_planning_failed", ticket_id=ticket_id, error=str(e)
+            )
+            ticket.status = "backlog"
+            await db.commit()
+
+
+async def generate_pm_reply_task(
+    ctx: dict, ticket_id: str, user_id: str
+) -> None:
+    """Called when user sends a planning message. PM generates a reply."""
+    async with async_session() as db:
+        result = await db.execute(
+            select(Ticket).where(Ticket.id == uuid.UUID(ticket_id))
+        )
+        ticket = result.scalar_one_or_none()
+        if not ticket:
+            return
+
+        proj_result = await db.execute(
+            select(Project).where(Project.id == ticket.project_id)
+        )
+        project = proj_result.scalar_one_or_none()
+        if not project:
+            return
+
+        user_result = await db.execute(
+            select(User).where(User.id == uuid.UUID(user_id))
+        )
+        user = user_result.scalar_one_or_none()
+        if not user or not user.encrypted_anthropic_key:
+            return
+
+        try:
+            await _run_planning_reply(db, ticket, project, user)
+        except Exception as e:
+            logger.error(
+                "pm_reply_failed", ticket_id=ticket_id, error=str(e)
+            )
+
+
 class WorkerSettings:
     """Arq worker settings."""
 
-    functions = [triage_ticket_task, execute_agent_task]
+    functions = [
+        triage_ticket_task,
+        execute_agent_task,
+        start_planning_task,
+        generate_pm_reply_task,
+    ]
     redis_settings = settings.redis_url

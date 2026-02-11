@@ -139,3 +139,94 @@ async def test_triage_ticket_no_json_raises():
                 project=_make_project(),
                 anthropic_key="sk-ant-test",
             )
+
+
+async def test_generate_planning_reply_streams_tokens():
+    """generate_planning_reply should stream tokens and return full text."""
+
+    # Build a fake streaming response with SSE lines
+    async def _fake_aiter_lines():
+        delta_hello = json.dumps({
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "Hello "},
+        })
+        delta_world = json.dumps({
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "world"},
+        })
+        events = [
+            'data: {"type":"content_block_start","index":0}',
+            f"data: {delta_hello}",
+            f"data: {delta_world}",
+            'data: {"type":"content_block_stop","index":0}',
+            "data: [DONE]",
+        ]
+        for line in events:
+            yield line
+
+    mock_resp = AsyncMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.aiter_lines = _fake_aiter_lines
+
+    collected_tokens = []
+
+    def on_token(tok: str):
+        collected_tokens.append(tok)
+
+    with patch("src.services.pm_agent.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.stream = MagicMock(return_value=mock_resp)
+        mock_resp.__aenter__ = AsyncMock(return_value=mock_resp)
+        mock_resp.__aexit__ = AsyncMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        from src.services.pm_agent import generate_planning_reply
+
+        result = await generate_planning_reply(
+            ticket=_make_ticket(),
+            project=_make_project(),
+            conversation_history=[
+                {"role": "user", "content": "Help me plan this."}
+            ],
+            anthropic_key="sk-ant-test",
+            on_token=on_token,
+        )
+
+    assert result == "Hello world"
+    assert collected_tokens == ["Hello ", "world"]
+
+
+async def test_finalize_planning_returns_triage_result():
+    """finalize_planning should return a TriageResult from conversation."""
+    mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
+    mock_resp.json.return_value = {
+        "content": [{"type": "text", "text": json.dumps(TRIAGE_JSON)}]
+    }
+
+    with patch("src.services.pm_agent.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(return_value=mock_resp)
+        mock_client_cls.return_value = mock_client
+
+        from src.services.pm_agent import finalize_planning
+
+        result = await finalize_planning(
+            ticket=_make_ticket(),
+            project=_make_project(),
+            conversation_history=[
+                {"role": "user", "content": "Build a login page"},
+                {"role": "assistant", "content": "Sure, let me analyze..."},
+            ],
+            anthropic_key="sk-ant-test",
+        )
+
+    assert result.agent_type == "backend"
+    assert result.runtime == "claude"
+    assert result.priority == "high"

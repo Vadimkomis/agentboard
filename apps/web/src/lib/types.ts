@@ -85,6 +85,16 @@ export interface Notification {
   created_at: string;
 }
 
+export interface PlanningMessage {
+  id: string;
+  ticket_id: string;
+  sequence: number;
+  role: "user" | "assistant";
+  content: string;
+  is_streaming: boolean;
+  created_at: string;
+}
+
 export interface DashboardStats {
   project_count: number;
   open_ticket_count: number;

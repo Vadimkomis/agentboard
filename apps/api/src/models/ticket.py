@@ -29,7 +29,7 @@ class Ticket(Base):
 
     # Status
     status: Mapped[str] = mapped_column(String(50), default="backlog", index=True)
-    # backlog, triaging, ready, in_progress, in_review, done, failed, cancelled
+    # backlog, planning, triaging, ready, in_progress, in_review, done, failed, cancelled
 
     # PM Agent classification
     agent_type: Mapped[str | None] = mapped_column(String(50))
@@ -54,3 +54,6 @@ class Ticket(Base):
 
     column: Mapped["BoardColumn"] = relationship(back_populates="tickets")  # noqa: F821
     executions: Mapped[list["Execution"]] = relationship(back_populates="ticket")  # noqa: F821
+    planning_messages: Mapped[list["PlanningMessage"]] = relationship(  # noqa: F821
+        back_populates="ticket", order_by="PlanningMessage.sequence"
+    )

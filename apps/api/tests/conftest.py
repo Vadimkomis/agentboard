@@ -25,6 +25,7 @@ from src.models import (
     Execution,
     ExecutionLog,
     Notification,
+    PlanningMessage,
     Project,
     Ticket,
     User,
@@ -83,9 +84,9 @@ async def clean_tables():
         async with test_engine.begin() as conn:
             await conn.execute(
                 text(
-                    "TRUNCATE TABLE execution_logs, executions, tickets, "
-                    "board_columns, boards, notifications, team_members, teams, "
-                    "agent_configs, projects, users CASCADE"
+                    "TRUNCATE TABLE planning_messages, execution_logs, executions, "
+                    "tickets, board_columns, boards, notifications, team_members, "
+                    "teams, agent_configs, projects, users CASCADE"
                 )
             )
     except Exception:
@@ -273,6 +274,84 @@ async def ticket(
         updated_at=datetime.utcnow(),
     )
     db.add(t)
+    await db.commit()
+    await db.refresh(t)
+    return t
+
+
+@pytest.fixture
+async def planning_ticket(
+    project: Project,
+    user: User,
+    backlog_column: BoardColumn,
+    override_db: AsyncSession,
+) -> Ticket:
+    """Create a ticket in 'planning' status with one assistant message."""
+    db = override_db
+    t = Ticket(
+        id=uuid.uuid4(),
+        project_id=project.id,
+        created_by_id=user.id,
+        column_id=backlog_column.id,
+        title="Plan This Feature",
+        description="Need help planning this feature",
+        position=1,
+        status="planning",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(t)
+    await db.flush()
+
+    msg = PlanningMessage(
+        id=uuid.uuid4(),
+        ticket_id=t.id,
+        sequence=1,
+        role="assistant",
+        content="I've analyzed your ticket. Here are my thoughts...",
+    )
+    db.add(msg)
+    await db.commit()
+    await db.refresh(t)
+    return t
+
+
+@pytest.fixture
+async def ready_ticket(
+    project: Project,
+    user: User,
+    ready_column: BoardColumn,
+    override_db: AsyncSession,
+) -> Ticket:
+    """Create a ticket in 'ready' status."""
+    db = override_db
+    t = Ticket(
+        id=uuid.uuid4(),
+        project_id=project.id,
+        created_by_id=user.id,
+        column_id=ready_column.id,
+        title="Ready Ticket",
+        description="This ticket is ready",
+        position=1,
+        status="ready",
+        agent_type="backend",
+        runtime="claude",
+        priority="medium",
+        complexity="simple",
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(t)
+    await db.flush()
+
+    msg = PlanningMessage(
+        id=uuid.uuid4(),
+        ticket_id=t.id,
+        sequence=1,
+        role="assistant",
+        content="Plan finalized.",
+    )
+    db.add(msg)
     await db.commit()
     await db.refresh(t)
     return t

@@ -4,7 +4,21 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import settings
-from src.routers import auth, billing, boards, dashboard, events, executions, notifications, projects, teams, tickets, users, webhooks
+from src.routers import (
+    auth,
+    billing,
+    boards,
+    dashboard,
+    events,
+    executions,
+    notifications,
+    planning,
+    projects,
+    teams,
+    tickets,
+    users,
+    webhooks,
+)
 
 
 @asynccontextmanager
@@ -27,6 +41,7 @@ app.include_router(users.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(boards.router, prefix="/api")
 app.include_router(tickets.router, prefix="/api")
+app.include_router(planning.router, prefix="/api")
 app.include_router(executions.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")

@@ -88,9 +88,9 @@ async def create_ticket(
         {"ticket_id": str(ticket.id), "column_id": str(ticket.column_id), "title": ticket.title},
     )
 
-    # Auto-triage if user has API key
+    # Auto-start planning if user has API key
     if current_user.encrypted_anthropic_key:
-        ticket.status = "triaging"
+        ticket.status = "planning"
         await db.commit()
         try:
             from arq import create_pool
@@ -99,7 +99,7 @@ async def create_ticket(
             from src.config import settings
 
             redis = await create_pool(RedisSettings.from_dsn(settings.redis_url))
-            await redis.enqueue_job("triage_ticket_task", str(ticket.id))
+            await redis.enqueue_job("start_planning_task", str(ticket.id))
         except Exception:
             # If Arq is not available, stay in backlog
             ticket.status = "backlog"
