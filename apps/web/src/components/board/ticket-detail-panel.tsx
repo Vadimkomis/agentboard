@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import type { Execution } from "@/lib/types";
 import { useBoardStore } from "@/lib/board-store";
-import { useApproveTicket, useTransitionTicket } from "@/hooks/use-tickets";
+import { useApproveTicket, useDeleteTicket, useTransitionTicket } from "@/hooks/use-tickets";
 import { useReopenPlan } from "@/hooks/use-planning";
 import { useBackendToken } from "@/hooks/use-backend-token";
 import { useQuery } from "@tanstack/react-query";
@@ -40,6 +40,7 @@ export function TicketDetailPanel({ projectId }: { projectId: string }) {
   const { token } = useBackendToken();
   const approve = useApproveTicket(projectId);
   const transition = useTransitionTicket(projectId);
+  const deleteTicket = useDeleteTicket(projectId);
   const reopen = useReopenPlan(projectId, ticket?.id ?? "");
 
   const { data: executions } = useQuery({
@@ -82,6 +83,17 @@ export function TicketDetailPanel({ projectId }: { projectId: string }) {
       toast.success(`Status changed to ${statusLabels[newStatus]?.label ?? newStatus}`);
     } catch {
       toast.error("Failed to change status");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Delete this ticket? This cannot be undone.")) return;
+    try {
+      await deleteTicket.mutateAsync(ticket.id);
+      toast.success("Ticket deleted");
+      closeDetail();
+    } catch {
+      toast.error("Failed to delete ticket");
     }
   };
 
@@ -271,8 +283,17 @@ export function TicketDetailPanel({ projectId }: { projectId: string }) {
             </Section>
           )}
 
-          <div className="mt-4 text-xs text-[var(--muted-foreground)]">
-            Created {new Date(ticket.created_at).toLocaleString()}
+          <div className="mt-6 flex items-center justify-between">
+            <div className="text-xs text-[var(--muted-foreground)]">
+              Created {new Date(ticket.created_at).toLocaleString()}
+            </div>
+            <button
+              onClick={handleDelete}
+              disabled={deleteTicket.isPending}
+              className="text-xs text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+            >
+              {deleteTicket.isPending ? "Deleting..." : "Delete ticket"}
+            </button>
           </div>
         </div>
       </div>

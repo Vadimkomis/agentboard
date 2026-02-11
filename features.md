@@ -45,7 +45,7 @@ Source of truth for all features in the project. Each feature is marked with its
 |---------|--------|---------|
 | Ticket CRUD | done | Create, list, get, update, delete |
 | Ticket move between columns | done | Updates column_id, position, and status |
-| Ticket detail side panel | done | Shows all metadata, triage results, planning chat, executions, PR link |
+| Ticket detail side panel | done | Shows all metadata, triage results, planning chat, executions, PR link, delete action |
 | Ticket status workflow | done | backlog -> planning -> triaging -> ready -> in_progress -> in_review -> done / failed / cancelled |
 | Approve & Execute action | done | From "ready" status, creates execution and enqueues agent |
 | Cancel ticket | done | Moves ticket to "cancelled" status |
