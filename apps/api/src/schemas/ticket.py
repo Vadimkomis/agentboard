@@ -27,6 +27,10 @@ class TicketMoveRequest(BaseModel):
     position: int
 
 
+class TicketTransitionRequest(BaseModel):
+    status: str
+
+
 class TriageResult(BaseModel):
     agent_type: str
     runtime: str

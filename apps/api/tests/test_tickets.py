@@ -185,6 +185,64 @@ async def test_ticket_position_auto_increments(
     assert resp1.json()["position"] < resp2.json()["position"]
 
 
+async def test_transition_ticket_to_column_status(
+    auth_client: AsyncClient,
+    project: Project,
+    ticket: Ticket,
+    ready_column: BoardColumn,
+):
+    """Transitioning to a status with a matching column moves the ticket to that column."""
+    resp = await auth_client.post(
+        f"/api/projects/{project.id}/tickets/{ticket.id}/transition",
+        json={"status": "ready"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "ready"
+    assert data["column_id"] == str(ready_column.id)
+    assert data["position"] >= 1
+
+
+async def test_transition_ticket_to_non_column_status(
+    auth_client: AsyncClient,
+    project: Project,
+    ticket: Ticket,
+    backlog_column: BoardColumn,
+):
+    """Transitioning to a status without a column updates status but keeps the current column."""
+    resp = await auth_client.post(
+        f"/api/projects/{project.id}/tickets/{ticket.id}/transition",
+        json={"status": "cancelled"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "cancelled"
+    # Column stays as backlog since "cancelled" has no column
+    assert data["column_id"] == str(backlog_column.id)
+
+
+async def test_transition_nonexistent_ticket(
+    auth_client: AsyncClient,
+    project: Project,
+):
+    fake_id = uuid.uuid4()
+    resp = await auth_client.post(
+        f"/api/projects/{project.id}/tickets/{fake_id}/transition",
+        json={"status": "ready"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_transition_ticket_nonexistent_project(auth_client: AsyncClient):
+    fake_project = uuid.uuid4()
+    fake_ticket = uuid.uuid4()
+    resp = await auth_client.post(
+        f"/api/projects/{fake_project}/tickets/{fake_ticket}/transition",
+        json={"status": "ready"},
+    )
+    assert resp.status_code == 404
+
+
 async def test_tickets_in_nonexistent_project(auth_client: AsyncClient):
     fake_id = uuid.uuid4()
     resp = await auth_client.get(f"/api/projects/{fake_id}/tickets")

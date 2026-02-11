@@ -49,6 +49,7 @@ Source of truth for all features in the project. Each feature is marked with its
 | Ticket status workflow | done | backlog -> planning -> triaging -> ready -> in_progress -> in_review -> done / failed / cancelled |
 | Approve & Execute action | done | From "ready" status, creates execution and enqueues agent |
 | Cancel ticket | done | Moves ticket to "cancelled" status |
+| Manual status transition from detail panel | done | Dropdown in ticket detail panel to move between any of the 9 statuses; auto-moves to matching column when one exists |
 
 ---
 

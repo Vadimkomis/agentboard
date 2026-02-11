@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import type { Execution } from "@/lib/types";
 import { useBoardStore } from "@/lib/board-store";
-import { useApproveTicket } from "@/hooks/use-tickets";
+import { useApproveTicket, useTransitionTicket } from "@/hooks/use-tickets";
 import { useReopenPlan } from "@/hooks/use-planning";
 import { useBackendToken } from "@/hooks/use-backend-token";
 import { useQuery } from "@tanstack/react-query";
@@ -23,10 +23,23 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   cancelled: { label: "Cancelled", color: "bg-gray-500/20 text-gray-400" },
 };
 
+const allStatuses = [
+  "backlog",
+  "planning",
+  "triaging",
+  "ready",
+  "in_progress",
+  "in_review",
+  "done",
+  "failed",
+  "cancelled",
+] as const;
+
 export function TicketDetailPanel({ projectId }: { projectId: string }) {
   const { selectedTicket: ticket, detailOpen, closeDetail } = useBoardStore();
   const { token } = useBackendToken();
   const approve = useApproveTicket(projectId);
+  const transition = useTransitionTicket(projectId);
   const reopen = useReopenPlan(projectId, ticket?.id ?? "");
 
   const { data: executions } = useQuery({
@@ -62,6 +75,16 @@ export function TicketDetailPanel({ projectId }: { projectId: string }) {
     }
   };
 
+  const handleStatusChange = async (newStatus: string) => {
+    if (newStatus === ticket.status) return;
+    try {
+      await transition.mutateAsync({ ticketId: ticket.id, status: newStatus });
+      toast.success(`Status changed to ${statusLabels[newStatus]?.label ?? newStatus}`);
+    } catch {
+      toast.error("Failed to change status");
+    }
+  };
+
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-40" onClick={closeDetail} />
@@ -71,9 +94,23 @@ export function TicketDetailPanel({ projectId }: { projectId: string }) {
             <div className="flex-1 mr-4">
               <h2 className="text-xl font-bold">{ticket.title}</h2>
               <div className="flex items-center gap-2 mt-2">
-                <span className={cn("text-xs px-2 py-1 rounded-full", status.color)}>
-                  {status.label}
-                </span>
+                <select
+                  value={ticket.status}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  disabled={transition.isPending}
+                  className={cn(
+                    "text-xs px-2 py-1 rounded-full border-none outline-none cursor-pointer appearance-none",
+                    status.color,
+                    "bg-clip-padding",
+                    transition.isPending && "opacity-50"
+                  )}
+                >
+                  {allStatuses.map((s) => (
+                    <option key={s} value={s}>
+                      {statusLabels[s]?.label ?? s}
+                    </option>
+                  ))}
+                </select>
                 {ticket.priority && (
                   <span className="text-xs px-2 py-1 rounded-full bg-[var(--secondary)] text-[var(--secondary-foreground)]">
                     {ticket.priority}

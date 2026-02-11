@@ -1,17 +1,24 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.auth import get_current_user
 from src.database import get_db
-from src.models.board import BoardColumn
+from src.models.board import Board, BoardColumn
 from src.models.execution import Execution
 from src.models.project import Project
 from src.models.ticket import Ticket
 from src.models.user import User
-from src.schemas.ticket import TicketCreate, TicketMoveRequest, TicketResponse, TicketUpdate
+from src.schemas.ticket import (
+    TicketCreate,
+    TicketMoveRequest,
+    TicketResponse,
+    TicketTransitionRequest,
+    TicketUpdate,
+)
 from src.services.event_bus import publish_event
 
 router = APIRouter(prefix="/projects/{project_id}/tickets", tags=["tickets"])
@@ -197,6 +204,75 @@ async def move_ticket(
             "status": ticket.status,
         },
     )
+
+    return ticket
+
+
+@router.post("/{ticket_id}/transition", response_model=TicketResponse)
+async def transition_ticket(
+    project_id: uuid.UUID,
+    ticket_id: uuid.UUID,
+    data: TicketTransitionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Transition a ticket to a new status, moving it to the matching column if one exists."""
+    await _verify_project_access(project_id, current_user, db)
+
+    result = await db.execute(
+        select(Ticket).where(Ticket.id == ticket_id, Ticket.project_id == project_id)
+    )
+    ticket = result.scalar_one_or_none()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    # Load the board with columns for this project
+    board_result = await db.execute(
+        select(Board)
+        .where(Board.project_id == project_id)
+        .options(selectinload(Board.columns))
+    )
+    board = board_result.scalar_one_or_none()
+
+    # Find column matching the target status
+    matching_column = None
+    if board:
+        matching_column = next(
+            (c for c in board.columns if c.ticket_status == data.status), None
+        )
+
+    ticket.status = data.status
+
+    if matching_column:
+        # Move ticket to the matching column at the end
+        pos_result = await db.execute(
+            select(func.coalesce(func.max(Ticket.position), 0))
+            .where(Ticket.column_id == matching_column.id)
+        )
+        max_pos = pos_result.scalar_one()
+        ticket.column_id = matching_column.id
+        ticket.position = max_pos + 1
+
+    await db.commit()
+    await db.refresh(ticket)
+
+    if matching_column:
+        await publish_event(
+            f"project:{project_id}",
+            "ticket_moved",
+            {
+                "ticket_id": str(ticket.id),
+                "column_id": str(matching_column.id),
+                "position": ticket.position,
+                "status": ticket.status,
+            },
+        )
+    else:
+        await publish_event(
+            f"project:{project_id}",
+            "ticket_updated",
+            {"ticket_id": str(ticket.id), "status": ticket.status},
+        )
 
     return ticket
 

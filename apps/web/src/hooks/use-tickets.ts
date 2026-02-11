@@ -75,6 +75,22 @@ export function useApproveTicket(projectId: string) {
   });
 }
 
+export function useTransitionTicket(projectId: string) {
+  const { token } = useBackendToken();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ticketId, status }: { ticketId: string; status: string }) =>
+      api.post<Ticket>(
+        `/api/projects/${projectId}/tickets/${ticketId}/transition`,
+        { status },
+        { token: token! }
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["tickets", projectId] });
+    },
+  });
+}
+
 export function useDeleteTicket(projectId: string) {
   const { token } = useBackendToken();
   const qc = useQueryClient();
