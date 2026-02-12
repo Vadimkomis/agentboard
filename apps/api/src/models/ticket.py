@@ -53,7 +53,9 @@ class Ticket(Base):
     )
 
     column: Mapped["BoardColumn"] = relationship(back_populates="tickets")  # noqa: F821
-    executions: Mapped[list["Execution"]] = relationship(back_populates="ticket")  # noqa: F821
+    executions: Mapped[list["Execution"]] = relationship(  # noqa: F821
+        back_populates="ticket", passive_deletes=True
+    )
     planning_messages: Mapped[list["PlanningMessage"]] = relationship(  # noqa: F821
-        back_populates="ticket", order_by="PlanningMessage.sequence"
+        back_populates="ticket", order_by="PlanningMessage.sequence", passive_deletes=True
     )
