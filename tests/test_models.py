@@ -353,8 +353,7 @@ class TestTicketIsRunningTooLong:
 
     def test_in_progress_at_exactly_3_hours_returns_false(self):
         # elapsed == 3*60*60 which is NOT > 3*60*60 (strictly greater than)
-        from datetime import timezone as _tz
-        frozen_now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=_tz.utc)
+        frozen_now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=UTC)
         started = frozen_now - timedelta(hours=3)
         ticket = TicketProxy(
             status=TicketStatus.in_progress,
