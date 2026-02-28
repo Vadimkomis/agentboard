@@ -90,6 +90,19 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "--cov=agentboard --cov-report=term-missing"
 
+[tool.coverage.run]
+omit = [
+    # TUI — Textual terminal widgets require a live terminal; not unit-testable
+    "agentboard/tui/*",
+    # LLM subprocess clients — require claude/codex CLI installed; tested via integration
+    "agentboard/llm/claude_cli.py",
+    "agentboard/llm/codex_cli.py",
+    # CLI entry point — thin Typer wrapper; tested via integration
+    "agentboard/cli.py",
+    # Engineering runner — clones repos and runs agents in workspaces; integration only
+    "agentboard/agents/engineering_runner.py",
+]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true
