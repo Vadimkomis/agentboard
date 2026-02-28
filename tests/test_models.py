@@ -7,7 +7,7 @@ This validates the actual production logic without SQLAlchemy machinery.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -340,42 +340,43 @@ class TestTicketIsRunningTooLong:
     def test_in_progress_started_recently_returns_false(self):
         ticket = TicketProxy(
             status=TicketStatus.in_progress,
-            started_at=datetime.utcnow() - timedelta(minutes=30),
+            started_at=datetime.now(UTC) - timedelta(minutes=30),
         )
         assert ticket.is_running_too_long is False
 
     def test_in_progress_started_over_3_hours_ago_returns_true(self):
         ticket = TicketProxy(
             status=TicketStatus.in_progress,
-            started_at=datetime.utcnow() - timedelta(hours=4),
+            started_at=datetime.now(UTC) - timedelta(hours=4),
         )
         assert ticket.is_running_too_long is True
 
     def test_in_progress_at_exactly_3_hours_returns_false(self):
-        # Freeze time so started_at and the utcnow() inside the property
-        # are measured from the same instant — avoids sub-millisecond drift.
-        frozen_now = datetime(2026, 6, 15, 12, 0, 0)
+        # elapsed == 3*60*60 which is NOT > 3*60*60 (strictly greater than)
+        from datetime import timezone as _tz
+        frozen_now = datetime(2026, 6, 15, 12, 0, 0, tzinfo=_tz.utc)
         started = frozen_now - timedelta(hours=3)
         ticket = TicketProxy(
             status=TicketStatus.in_progress,
             started_at=started,
         )
         with patch("agentboard.core.models.datetime") as mock_dt:
-            mock_dt.utcnow.return_value = frozen_now
+            mock_dt.now.return_value = frozen_now
+            mock_dt.now.side_effect = lambda tz=None: frozen_now
             # elapsed == 3*60*60 which is NOT > 3*60*60
             assert ticket.is_running_too_long is False
 
     def test_done_ticket_even_if_old_started_at_returns_false(self):
         ticket = TicketProxy(
             status=TicketStatus.done,
-            started_at=datetime.utcnow() - timedelta(hours=10),
+            started_at=datetime.now(UTC) - timedelta(hours=10),
         )
         assert ticket.is_running_too_long is False
 
     def test_failed_ticket_returns_false(self):
         ticket = TicketProxy(
             status=TicketStatus.failed,
-            started_at=datetime.utcnow() - timedelta(hours=5),
+            started_at=datetime.now(UTC) - timedelta(hours=5),
         )
         assert ticket.is_running_too_long is False
 

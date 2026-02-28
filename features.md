@@ -1,113 +1,117 @@
-# AgentBoard CLI — Features
+# AgentBoard — Feature Tracker
 
-Source of truth for all features. AgentBoard is a terminal-native personal productivity system for developers combining AI agent delegation with personal time intelligence.
+Story-driven multi-agent development TUI. Write a PRD in your terminal; AI agents handle engineering and GTM.
 
 **Status key:** `planned` | `in-progress` | `done` | `deprecated`
 
 ---
 
-## Core Concept
-
-Personal productivity OS for developers, built around three pillars:
-
-1. **Time Intelligence** — understand where your time actually goes vs where you think it goes
-2. **Agent Delegation** — offload implementation work to AI coding agents
-3. **Habit Building** — track patterns, maintain streaks, close the gap between intention and action
-
----
-
-## Data Sources
-
-| Source | What it captures | Integration | Status |
-|--------|-----------------|-------------|--------|
-| Location (mobile app) | Physical location — gym, office, home, commute | GPS + geofencing, syncs to local DB | planned |
-| Google Calendar | Scheduled activities — what you planned to do | OAuth + Calendar API polling | planned |
-| Computer activity | What you're actually doing on your machine | Active window tracking, categorized by activity type | planned |
-
----
-
-## Time Intelligence
+## Story Board (Kanban)
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Planned vs actual comparison | planned | Calendar events compared against location + computer activity to show what you actually did |
-| Location-aware context | planned | Automatic context detection — "at gym" vs "at desk" vs "commuting" — from mobile location data |
-| Intensity scoring | planned | How focused was the work session — derived from app switching frequency, break patterns |
-| Daily honesty report | planned | End-of-day summary: what you planned, what you did, where you were, focus score |
-| Weekly honesty report | planned | Aggregated weekly view with trends and comparisons to previous weeks |
-| Pattern detection | planned | Identify recurring patterns over time — best focus hours, most productive locations, schedule drift |
+| 4-column Kanban (DRAFTING / ENGINEERING / TESTING / DONE) | done | Textual TUI with full keyboard navigation |
+| Story cards with progress bars and agent badges | done | Shows N/M tickets done, agent type abbreviations (BE FE QA), GTM warning, bug count |
+| Keyboard navigation | done | [n] new, [enter] open, [tab] switch chat, [f] finalize PM, [g] finalize growth, [d] done, [h] heartbeat |
 
 ---
 
-## Agent Delegation
+## PRD Editing
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Ticket creation | done | Create tickets with title and description |
-| PM agent planning conversation | done | Interactive chat with PM agent to refine requirements — priority, size, risks, dependencies, validation criteria |
-| PM streaming replies | done | Claude Sonnet streaming via SSE for real-time typing effect |
-| Finalize plan | done | PM outputs structured triage classification after conversation |
-| Triage classification | done | agent_type, runtime, priority, complexity, branch_name, refined_description, acceptance_criteria, context_files, reasoning |
-| Ticket dependency graph | planned | Visual relationship view showing ticket dependencies and blockers |
-| Claude agent execution | done | ClaudeSDKClient with isolated workspace, branch/commit/push/PR |
-| Codex agent execution | done | CLI exec mode, same flow as Claude runner |
-| Workspace isolation | done | Fresh git clone in /tmp/agentboard/workspaces/{execution_id}/ |
-| Execution log streaming | done | Log types: assistant, tool_call, tool_result, thinking, error, system |
-| Auto PR creation | done | Agent creates PR via GitHub API after completing work, tags creator for review |
-| Agent self-validation | planned | Agent runs tests/linter before creating PR, reports confidence score |
-| Execution metrics | done | total_tokens, total_cost, duration_seconds per execution |
-| Retry / cancel execution | planned | Ability to retry failed executions or cancel in-progress ones |
-
-**Agent types:** backend, frontend, mobile, devops, qa, fullstack, docs
-**Runtimes:** claude (complex/multi-file), codex (simple/single-file)
+| 5-section PRD editor (Problem / Solution / Scope / Acceptance / GTM) | done | Editable while DRAFTING/REFINING; read-only after finalize |
+| GTM mandatory gate | done | PM refuses to suggest finalization without GTM; warns on card with [GTM ⚠] badge |
 
 ---
 
-## TUI Board
+## PM Agent
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Terminal kanban board | planned | Color-coded columns rendered with ANSI colors in the terminal |
-| Column color scheme | planned | Backlog (gray), Planning (yellow), Ready (blue), In Progress (cyan), In Review (magenta), Done (green), Failed (red), Cancelled (dim) |
-| Keyboard navigation | planned | Arrow keys to move between tickets/columns, Enter to open detail, single-key shortcuts for actions |
-| Ticket detail view | planned | Full-screen overlay showing ticket metadata, planning chat history, execution logs |
-| Planning chat in TUI | planned | Interactive chat with PM agent directly in the terminal |
-| Execution log viewer | planned | Real-time streaming logs from agent execution in terminal |
+| Conversational refinement | done | Streaming chat in TUI; asks 2-3 questions per response |
+| GTM prompting | done | Always asks about growth lever, channels, monetization if GTM missing |
+| Decomposition on finalize | done | Outputs structured JSON with engineering tickets + marketing ticket |
+| prd_anchor linking | done | Each ticket tagged with the PRD section it was sliced from |
+| PRD diff analysis | done | Detects changed sections, marks affected tickets as stale |
+| Bug triage | done | Creates focused bug-fix tickets from user bug reports |
 
 ---
 
-## Habit Tracking
+## Growth Agent
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Velocity tracking | planned | Tickets completed per sprint/week, trend over time |
-| Time allocation trends | planned | Where time is spent across categories — coding, meetings, gym, commute, etc. |
-| Streak tracking | planned | Consecutive days hitting targets — gym visits, focus hours, tickets shipped |
-| Planned vs actual gap trending | planned | Track how the gap between intention and reality changes over weeks/months |
-| Focus score history | planned | Daily focus scores plotted over time to identify improvement or regression |
+| Parallel conversational agent | done | Runs alongside PM chat from story creation; tab-switchable |
+| GTM questions | done | Covers ICP, discovery, growth lever, pricing, launch sequence |
+| Independent finalize | done | [g] generates LAUNCH.md independently from PM finalize |
+| LAUNCH.md generation | done | Positioning, audience, channels, launch copy, pricing, 30-day sequence |
 
 ---
 
-## Customization
+## Engineering Execution
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| Config file (`.agentboard/config.yml`) | planned | Agent model, cost limits, PR template, branch naming convention |
-| Custom prompts (`.agentboard/prompts/`) | planned | Override default PM agent and validation prompts per project |
-| Custom workflows (`.agentboard/workflows/`) | planned | Define ticket lifecycle, status transitions, auto-approve rules |
-| Custom templates (`.agentboard/templates/`) | planned | PR body format, commit message format, ticket templates |
-| Git-native config | planned | All config lives in the repo, versioned alongside the project |
+| Dependency-aware orchestration | done | asyncio — independent tickets start in parallel; dependent tickets wait |
+| Claude CLI runner | done | Subprocess claude --dangerously-skip-permissions in workspace dir |
+| Codex CLI runner | done | Subprocess codex --full-auto in workspace dir |
+| Workspace isolation | done | Fresh git clone per execution in /tmp/agentboard/workspaces/{id}/ |
+| Automatic commit + push | done | Runner commits changes and pushes branch after agent completes |
+| GitHub PR creation | done | Uses gh CLI if github_token is configured |
+| Agent type routing | done | PM assigns backend/frontend/mobile/devops/qa/fullstack/docs/marketing |
 
 ---
 
-## Infrastructure
+## Testing Loop
 
 | Feature | Status | Details |
 |---------|--------|---------|
-| No hosted services required | planned | $0/day operating cost — everything runs locally |
-| Local SQLite storage | planned | Tickets, time data, execution history stored in local SQLite DB |
-| File-based ticket storage | planned | Optional: tickets as markdown files in the repo (git-native) |
-| Anthropic API (BYOK) | done | Users provide their own API key for PM agent + execution |
-| GitHub integration | done | Branches, PRs, repo file tree, webhooks |
-| Redis + PostgreSQL (legacy web) | deprecated | Web version infra — being replaced by local SQLite |
-| Arq background workers (legacy web) | deprecated | Web version task queue — being replaced by local async execution |
+| Auto-transition to TESTING | done | Story moves to TESTING when all tickets are terminal |
+| TUI notification on ready for testing | done | Textual notify() + desktop notification (macOS/Linux) |
+| Bug report chat panel | done | PM agent creates bug-fix ticket from user description |
+| Story flip back to ENGINEERING | done | Story returns to ENGINEERING when bug ticket is created |
+| Mark done | done | [d] transitions story to DONE |
+
+---
+
+## Heartbeat
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| 30-minute asyncio loop | done | asyncio.sleep(1800), no external scheduler |
+| Board state checks | done | Empty pipeline, stale drafts (>24h), stuck executions (>3h), missing GTM, stale tickets |
+| LLM-powered alerts | done | Claude CLI generates 1-2 sentence alerts; local fallback if CLI unavailable |
+| Status bar display | done | Footer shows "♥ 2min ago OK" or alert text |
+| Desktop notifications | done | macOS osascript + Linux notify-send |
+| Force heartbeat | done | [h] triggers immediate check |
+
+---
+
+## Data Model
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Story with 5 PRD sections | done | prd_problem/solution/scope/acceptance/gtm columns |
+| StoryMessage (PM chat history) | done | Full conversation persisted; replayed on each CLI call |
+| GrowthMessage (Growth chat history) | done | Independent conversation for growth agent |
+| Ticket with prd_anchor | done | Links ticket to PRD section; is_stale flag for drift detection |
+| Execution + ExecutionLog | done | Per-agent-run records with stdout/stderr streaming |
+| SQLite via SQLAlchemy async | done | aiosqlite + asyncio, zero config, zero hosting cost |
+
+---
+
+## Infrastructure & Distribution
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| Local SQLite (no hosted DB) | done | ~/.agentboard/agentboard.db |
+| CLI subprocess (no API keys) | done | Uses claude/codex CLI with user's existing subscription |
+| $0 operating cost | done | Only API costs for actual agent work via CLI |
+| PyPI package | done | pipx install agentboard / pip install agentboard |
+| MIT license | done | No restrictions on commercial use |
+| Agent YAML configs (bundled defaults) | done | backend, frontend, mobile, devops, qa, fullstack, docs, growth, marketing |
+| ai-playbook override path | done | agent_config_path in config for custom agent YAMLs |
+| GitHub Actions CI | done | ruff + pytest on Python 3.11/3.12/3.13 |
+| GitHub Actions release | done | PyPI publish + GitHub release on tag push |
+| No vendor lock-in | done | Works with claude-only or codex-only; GitHub integration optional |
