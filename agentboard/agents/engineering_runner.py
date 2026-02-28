@@ -170,10 +170,7 @@ class EngineeringRunner:
         try:
             env = {"GH_TOKEN": self._config.github_token or ""}
             out = await _run_cmd(
-                ["gh", "pr", "create",
-                 "--title", title,
-                 "--body", body,
-                 "--head", branch],
+                ["gh", "pr", "create", "--title", title, "--body", body, "--head", branch],
                 cwd=workspace,
                 extra_env=env,
             )
@@ -193,6 +190,7 @@ async def _run_cmd(
 ) -> str:
     """Run a shell command, returning stdout. Raises on non-zero exit."""
     import os
+
     env = {**os.environ, **(extra_env or {})}
     proc = await asyncio.create_subprocess_exec(
         *cmd,

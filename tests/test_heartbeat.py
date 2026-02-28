@@ -78,9 +78,7 @@ class TestLocalCheckStuckTicket:
                     "launch_md_finalized": False,
                     "ticket_total": 3,
                     "ticket_done": 1,
-                    "stuck_tickets": [
-                        {"id": 10, "title": "API endpoint", "hours": 4.5}
-                    ],
+                    "stuck_tickets": [{"id": 10, "title": "API endpoint", "hours": 4.5}],
                     "stale_tickets": [],
                 }
             ]
@@ -282,9 +280,7 @@ class TestLocalCheckPriority:
                     "launch_md_finalized": False,
                     "ticket_total": 3,
                     "ticket_done": 1,
-                    "stuck_tickets": [
-                        {"id": 10, "title": "Stuck task", "hours": 5.0}
-                    ],
+                    "stuck_tickets": [{"id": 10, "title": "Stuck task", "hours": 5.0}],
                     "stale_tickets": [],
                 },
                 {
@@ -356,9 +352,7 @@ class TestLocalCheckEdgeCases:
                     "launch_md_finalized": False,
                     "ticket_total": 1,
                     "ticket_done": 0,
-                    "stuck_tickets": [
-                        {"id": 10, "title": "Task X", "hours": 3.7}
-                    ],
+                    "stuck_tickets": [{"id": 10, "title": "Task X", "hours": 3.7}],
                     "stale_tickets": [],
                 }
             ]

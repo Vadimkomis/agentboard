@@ -249,13 +249,15 @@ class TestBuildPrdSummary:
 class TestPMAgentDecompose:
     async def test_decompose_parses_response(self):
         mock_client = AsyncMock()
-        mock_client.complete.return_value = json.dumps({
-            "engineering_tickets": [
-                {"index": 0, "title": "Build API", "agent_type": "backend"},
-                {"index": 1, "title": "Build UI", "agent_type": "frontend"},
-            ],
-            "marketing_ticket": {"title": "LAUNCH.md"},
-        })
+        mock_client.complete.return_value = json.dumps(
+            {
+                "engineering_tickets": [
+                    {"index": 0, "title": "Build API", "agent_type": "backend"},
+                    {"index": 1, "title": "Build UI", "agent_type": "frontend"},
+                ],
+                "marketing_ticket": {"title": "LAUNCH.md"},
+            }
+        )
 
         agent = PMAgent(llm_client=mock_client)
         story = _make_story(
@@ -273,10 +275,12 @@ class TestPMAgentDecompose:
 
     async def test_decompose_handles_empty_tickets(self):
         mock_client = AsyncMock()
-        mock_client.complete.return_value = json.dumps({
-            "engineering_tickets": [],
-            "marketing_ticket": {},
-        })
+        mock_client.complete.return_value = json.dumps(
+            {
+                "engineering_tickets": [],
+                "marketing_ticket": {},
+            }
+        )
 
         agent = PMAgent(llm_client=mock_client)
         story = _make_story(prd_problem="Minimal")
@@ -306,11 +310,13 @@ class TestPMAgentDecompose:
 class TestPMAgentAnalyzeDiff:
     async def test_analyze_diff_returns_stale_indices(self):
         mock_client = AsyncMock()
-        mock_client.complete.return_value = json.dumps({
-            "stale_ticket_indices": [0, 2],
-            "changed_sections": ["checkout.payment-methods"],
-            "summary": "Payment section rewritten",
-        })
+        mock_client.complete.return_value = json.dumps(
+            {
+                "stale_ticket_indices": [0, 2],
+                "changed_sections": ["checkout.payment-methods"],
+                "summary": "Payment section rewritten",
+            }
+        )
 
         agent = PMAgent(llm_client=mock_client)
         story = _make_story()
@@ -333,11 +339,13 @@ class TestPMAgentAnalyzeDiff:
 
     async def test_analyze_diff_no_stale_tickets(self):
         mock_client = AsyncMock()
-        mock_client.complete.return_value = json.dumps({
-            "stale_ticket_indices": [],
-            "changed_sections": [],
-            "summary": "",
-        })
+        mock_client.complete.return_value = json.dumps(
+            {
+                "stale_ticket_indices": [],
+                "changed_sections": [],
+                "summary": "",
+            }
+        )
 
         agent = PMAgent(llm_client=mock_client)
         story = _make_story()
@@ -374,19 +382,21 @@ class TestPMAgentAnalyzeDiff:
 class TestPMAgentTriageBug:
     async def test_triage_bug_returns_parsed_dict(self):
         mock_client = AsyncMock()
-        mock_client.complete.return_value = json.dumps({
-            "title": "Fix: Login crash",
-            "prd_anchor": "bug.auth",
-            "agent_type": "backend",
-            "runtime": "claude",
-            "priority": "high",
-            "complexity": "medium",
-            "branch_name": "fix/login-crash",
-            "refined_description": "Steps to reproduce...",
-            "acceptance_criteria": "Login works after fix",
-            "context_files": ["src/auth.py"],
-            "depends_on": [],
-        })
+        mock_client.complete.return_value = json.dumps(
+            {
+                "title": "Fix: Login crash",
+                "prd_anchor": "bug.auth",
+                "agent_type": "backend",
+                "runtime": "claude",
+                "priority": "high",
+                "complexity": "medium",
+                "branch_name": "fix/login-crash",
+                "refined_description": "Steps to reproduce...",
+                "acceptance_criteria": "Login works after fix",
+                "context_files": ["src/auth.py"],
+                "depends_on": [],
+            }
+        )
 
         agent = PMAgent(llm_client=mock_client)
         story = _make_story(prd_problem="Auth system")

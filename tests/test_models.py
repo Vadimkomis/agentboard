@@ -441,8 +441,16 @@ class TestEnumValues:
 
     def test_all_agent_types(self):
         expected = {
-            "pm", "growth", "backend", "frontend", "mobile",
-            "devops", "qa", "fullstack", "docs", "marketing",
+            "pm",
+            "growth",
+            "backend",
+            "frontend",
+            "mobile",
+            "devops",
+            "qa",
+            "fullstack",
+            "docs",
+            "marketing",
         }
         assert {a.value for a in AgentType} == expected
 

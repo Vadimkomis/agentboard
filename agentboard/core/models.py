@@ -116,8 +116,10 @@ class Story(Base):
 
     # Relationships
     pm_messages: Mapped[list[StoryMessage]] = relationship(
-        "StoryMessage", back_populates="story", cascade="all, delete-orphan",
-        foreign_keys="StoryMessage.story_id"
+        "StoryMessage",
+        back_populates="story",
+        cascade="all, delete-orphan",
+        foreign_keys="StoryMessage.story_id",
     )
     growth_messages: Mapped[list[GrowthMessage]] = relationship(
         "GrowthMessage", back_populates="story", cascade="all, delete-orphan"
@@ -132,13 +134,15 @@ class Story(Base):
     @property
     def prd_complete(self) -> bool:
         """True if all 5 PRD sections have content."""
-        return all([
-            self.prd_problem,
-            self.prd_solution,
-            self.prd_scope,
-            self.prd_acceptance,
-            self.prd_gtm,
-        ])
+        return all(
+            [
+                self.prd_problem,
+                self.prd_solution,
+                self.prd_scope,
+                self.prd_acceptance,
+                self.prd_gtm,
+            ]
+        )
 
     @property
     def gtm_complete(self) -> bool:
@@ -170,7 +174,11 @@ class Story(Base):
 
     @property
     def open_bug_count(self) -> int:
-        return sum(1 for t in self.tickets if t.is_bug and t.status not in (TicketStatus.done, TicketStatus.cancelled))
+        return sum(
+            1
+            for t in self.tickets
+            if t.is_bug and t.status not in (TicketStatus.done, TicketStatus.cancelled)
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -182,14 +190,18 @@ class StoryMessage(Base):
     __tablename__ = "story_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    story_id: Mapped[int] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), nullable=False)
+    story_id: Mapped[int] = mapped_column(
+        ForeignKey("stories.id", ondelete="CASCADE"), nullable=False
+    )
     role: Mapped[MessageRole] = mapped_column(Enum(MessageRole), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
 
-    story: Mapped[Story] = relationship("Story", back_populates="pm_messages", foreign_keys=[story_id])
+    story: Mapped[Story] = relationship(
+        "Story", back_populates="pm_messages", foreign_keys=[story_id]
+    )
 
     def to_dict(self) -> dict[str, str]:
         return {"role": self.role.value, "content": self.content}
@@ -204,7 +216,9 @@ class GrowthMessage(Base):
     __tablename__ = "growth_messages"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    story_id: Mapped[int] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), nullable=False)
+    story_id: Mapped[int] = mapped_column(
+        ForeignKey("stories.id", ondelete="CASCADE"), nullable=False
+    )
     role: Mapped[MessageRole] = mapped_column(Enum(MessageRole), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -226,7 +240,9 @@ class Ticket(Base):
     __tablename__ = "tickets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    story_id: Mapped[int] = mapped_column(ForeignKey("stories.id", ondelete="CASCADE"), nullable=False)
+    story_id: Mapped[int] = mapped_column(
+        ForeignKey("stories.id", ondelete="CASCADE"), nullable=False
+    )
 
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -309,7 +325,9 @@ class Execution(Base):
     __tablename__ = "executions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    ticket_id: Mapped[int] = mapped_column(ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False)
+    ticket_id: Mapped[int] = mapped_column(
+        ForeignKey("tickets.id", ondelete="CASCADE"), nullable=False
+    )
 
     status: Mapped[str] = mapped_column(String(20), default="running", nullable=False)
     runtime: Mapped[Runtime] = mapped_column(Enum(Runtime), nullable=False)

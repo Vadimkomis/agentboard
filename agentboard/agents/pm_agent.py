@@ -167,13 +167,15 @@ class PMAgent:
         # Include PRD state as context in first message
         if not history:
             prd_context = self._build_prd_summary(story)
-            messages.append({
-                "role": "user",
-                "content": (
-                    f"Story title: {story.title}\n\nCurrent PRD:\n{prd_context}\n\n"
-                    f"User message: {user_message}"
-                ),
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"Story title: {story.title}\n\nCurrent PRD:\n{prd_context}\n\n"
+                        f"User message: {user_message}"
+                    ),
+                }
+            )
         else:
             # Pass full conversation history
             for msg in history:
@@ -210,10 +212,13 @@ class PMAgent:
         existing_tickets: list[Ticket],
     ) -> DiffAnalysis:
         """Determine which tickets are stale after a PRD edit."""
-        ticket_summary = json.dumps([
-            {"index": t.ticket_index, "title": t.title, "prd_anchor": t.prd_anchor}
-            for t in existing_tickets
-        ], indent=2)
+        ticket_summary = json.dumps(
+            [
+                {"index": t.ticket_index, "title": t.title, "prd_anchor": t.prd_anchor}
+                for t in existing_tickets
+            ],
+            indent=2,
+        )
 
         user_msg = (
             f"Original PRD:\n{original_prd}\n\n"
@@ -241,9 +246,7 @@ class PMAgent:
         """Create a bug-fix ticket from a user bug report."""
         prd_summary = self._build_prd_summary(story)
         user_msg = (
-            f"Story: {story.title}\n\n"
-            f"PRD context:\n{prd_summary}\n\n"
-            f"Bug report:\n{bug_description}"
+            f"Story: {story.title}\n\nPRD context:\n{prd_summary}\n\nBug report:\n{bug_description}"
         )
 
         response = await self._client.complete(  # type: ignore[call-arg]
