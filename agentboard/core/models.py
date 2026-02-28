@@ -123,7 +123,7 @@ class Story(Base):
         "GrowthMessage", back_populates="story", cascade="all, delete-orphan"
     )
     tickets: Mapped[list[Ticket]] = relationship(
-        "Ticket", back_populates="story", cascade="all, delete-orphan"
+        "Ticket", back_populates="story", cascade="all, delete-orphan", lazy="selectin"
     )
 
     def __repr__(self) -> str:

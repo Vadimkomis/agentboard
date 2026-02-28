@@ -413,8 +413,16 @@ class StoryDetailScreen(Screen):
                 db_story.prd_acceptance = prd["acceptance"] or db_story.prd_acceptance
                 db_story.prd_gtm = prd["gtm"] or db_story.prd_gtm
 
-        # Validate PRD completeness
-        if not story.prd_complete:
+        # Validate PRD completeness against the just-saved values
+        prd_complete = all([
+            prd["title"],
+            prd["problem"],
+            prd["solution"],
+            prd["scope"],
+            prd["acceptance"],
+            prd["gtm"],
+        ])
+        if not prd_complete:
             self.notify("PRD is incomplete — fill all sections including GTM", severity="warning")
             return
 
@@ -422,6 +430,9 @@ class StoryDetailScreen(Screen):
 
         try:
             pm_agent = self.app.pm_agent  # type: ignore[attr-defined]
+            # Re-fetch story so pm_agent sees the saved PRD values
+            async with get_session() as session:
+                story = await session.get(Story, story.id) or story  # type: ignore[assignment]
             decomposed = await pm_agent.decompose(story)
 
             orchestrator = self.app.orchestrator  # type: ignore[attr-defined]

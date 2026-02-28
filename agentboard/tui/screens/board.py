@@ -104,7 +104,8 @@ class BoardScreen(Screen):
         """Load stories from DB and populate columns."""
         async with get_session() as session:
             from sqlalchemy import select
-            stmt = select(Story)
+            from sqlalchemy.orm import selectinload
+            stmt = select(Story).options(selectinload(Story.tickets))
             result = await session.execute(stmt)
             stories = result.scalars().all()
 

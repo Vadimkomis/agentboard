@@ -1,6 +1,7 @@
-# AgentBoard — Claude Agent Instructions
+# AgentBoard — Codex Agent Instructions
 
-> This file guides Claude Code when operating in the agentboard workspace, whether as:
+> **Mirror of `CLAUDE.md`** — same rules adapted for Codex CLI.
+> This file guides Codex when operating in the agentboard workspace, whether as:
 > - **PM Agent** — conversational story refinement, PRD decomposition, bug triage
 > - **Engineering Agent** — headless code execution on a ticket
 > - **Developer** — working on agentboard itself
@@ -162,11 +163,11 @@ When executing a ticket in a workspace:
 
 ---
 
-## Specialized Agents
+## Skills
 
-Use these Claude subagents (via the Task tool) for targeted work:
+Use reusable Codex skills for targeted work across projects:
 
-| Agent | When to use |
+| Skill | When to use |
 |-------|-------------|
 | `architecture-reviewer` | **Before** implementing significant changes — validates design early |
 | `senior-code-reviewer` | **After** completing a feature — reviews for bugs, security, performance |
@@ -175,4 +176,4 @@ Use these Claude subagents (via the Task tool) for targeted work:
 | `github-actions-engineer` | CI/CD workflow creation, debugging, optimization |
 | `red-team-analyst` | **After** security-sensitive features — adversarial review |
 
-**Pattern:** Plan → Implement → Review → Test → Simplify
+**Pattern:** Plan → Implement → Review → Attack → Test → Simplify
