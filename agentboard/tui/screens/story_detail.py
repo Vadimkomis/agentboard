@@ -414,30 +414,32 @@ class StoryDetailScreen(Screen):
         """Finalize PM: save PRD, decompose, start engineering."""
         story = await self._ensure_story_exists()
 
-        # Save latest PRD values
+        # Save latest PRD values, resolving effective values via fallback to DB
         prd = self.query_one("#prd-editor", PRDEditor).get_prd_values()
+        effective: dict[str, str] = {}
         async with get_session() as session:
             db_story = await session.get(Story, story.id)
             if db_story:
-                db_story.title = prd["title"] or db_story.title
-                db_story.prd_problem = prd["problem"] or db_story.prd_problem
-                db_story.prd_solution = prd["solution"] or db_story.prd_solution
-                db_story.prd_scope = prd["scope"] or db_story.prd_scope
-                db_story.prd_acceptance = prd["acceptance"] or db_story.prd_acceptance
-                db_story.prd_gtm = prd["gtm"] or db_story.prd_gtm
+                effective["title"] = prd["title"] or db_story.title or ""
+                effective["problem"] = prd["problem"] or db_story.prd_problem or ""
+                effective["solution"] = prd["solution"] or db_story.prd_solution or ""
+                effective["scope"] = prd["scope"] or db_story.prd_scope or ""
+                effective["acceptance"] = prd["acceptance"] or db_story.prd_acceptance or ""
+                effective["gtm"] = prd["gtm"] or db_story.prd_gtm or ""
+                db_story.title = effective["title"]
+                db_story.prd_problem = effective["problem"]
+                db_story.prd_solution = effective["solution"]
+                db_story.prd_scope = effective["scope"]
+                db_story.prd_acceptance = effective["acceptance"]
+                db_story.prd_gtm = effective["gtm"]
+            else:
+                effective = {
+                    k: prd.get(k, "")
+                    for k in ("title", "problem", "solution", "scope", "acceptance", "gtm")
+                }
 
-        # Validate PRD completeness against the just-saved values
-        prd_complete = all(
-            [
-                prd["title"],
-                prd["problem"],
-                prd["solution"],
-                prd["scope"],
-                prd["acceptance"],
-                prd["gtm"],
-            ]
-        )
-        if not prd_complete:
+        # Validate against effective persisted values, not raw editor input
+        if not all(effective.values()):
             self.notify("PRD is incomplete — fill all sections including GTM", severity="warning")
             return
 
