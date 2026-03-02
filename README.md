@@ -87,6 +87,7 @@ archive_after_days: 7
 | `Tab` | Switch between PM and Growth chat panels |
 | `f` | Finalize PM once → create tickets, start engineering (requires PM exchange) |
 | `g` | Finalize Growth → generate LAUNCH.md |
+| `x` | Delete PRD (DRAFTING/REFINING only, with confirmation) |
 | `d` | Mark story done |
 | `h` | Force heartbeat check |
 | `q` / `Esc` | Back / quit |

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from agentboard.core.models import MessageRole, StoryStatus
 from agentboard.tui.screens.story_detail import (
     PM_DISCUSSION_MARKER,
+    _can_delete_prd,
     _can_finalize_pm,
     _has_pm_conversation,
     _has_pm_discussion_marker,
@@ -19,6 +20,15 @@ def test_can_finalize_pm_only_in_drafting_or_refining():
     assert _can_finalize_pm(StoryStatus.engineering) is False
     assert _can_finalize_pm(StoryStatus.testing) is False
     assert _can_finalize_pm(StoryStatus.done) is False
+
+
+def test_can_delete_prd_only_in_drafting_or_refining():
+    assert _can_delete_prd(StoryStatus.drafting) is True
+    assert _can_delete_prd(StoryStatus.refining) is True
+    assert _can_delete_prd(StoryStatus.decomposing) is False
+    assert _can_delete_prd(StoryStatus.engineering) is False
+    assert _can_delete_prd(StoryStatus.testing) is False
+    assert _can_delete_prd(StoryStatus.done) is False
 
 
 def test_has_pm_conversation_requires_user_and_assistant_roles():

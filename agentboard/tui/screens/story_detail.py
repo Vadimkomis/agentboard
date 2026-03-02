@@ -7,13 +7,14 @@ import asyncio
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import (
     Button,
     Footer,
     Header,
     Input,
     Label,
+    Static,
     TabbedContent,
     TabPane,
     TextArea,
@@ -35,6 +36,11 @@ PM_DISCUSSION_MARKER = "__pm_discussion_started__"
 
 def _can_finalize_pm(status: StoryStatus) -> bool:
     """PM finalize is a one-time action, only while refining the initial PRD."""
+    return status in (StoryStatus.drafting, StoryStatus.refining)
+
+
+def _can_delete_prd(status: StoryStatus) -> bool:
+    """PRD deletion is only available before engineering starts."""
     return status in (StoryStatus.drafting, StoryStatus.refining)
 
 
@@ -143,6 +149,58 @@ class PRDEditor(Vertical):
         }
 
 
+class DeletePRDConfirmScreen(ModalScreen[bool]):
+    """Confirmation dialog for destructive PRD deletion."""
+
+    DEFAULT_CSS = """
+    DeletePRDConfirmScreen {
+        align: center middle;
+    }
+    DeletePRDConfirmScreen .dialog {
+        width: 60;
+        height: auto;
+        padding: 1 2;
+        background: $surface;
+        border: solid $error;
+    }
+    DeletePRDConfirmScreen .title {
+        text-style: bold;
+        color: $error;
+        margin-bottom: 1;
+    }
+    DeletePRDConfirmScreen .actions {
+        height: auto;
+        layout: horizontal;
+        align: right middle;
+        margin-top: 1;
+    }
+    DeletePRDConfirmScreen .actions Button {
+        margin-left: 1;
+    }
+    """
+
+    def __init__(self, story_title: str, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+        self._story_title = story_title
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="dialog"):
+            yield Label("Delete PRD?", classes="title")
+            yield Static(
+                f"This will permanently delete '{self._story_title}' and all associated PM/Growth "
+                "messages. This action cannot be undone."
+            )
+            with Horizontal(classes="actions"):
+                yield Button("Cancel", id="btn-cancel", variant="default")
+                yield Button("Delete", id="btn-confirm-delete", variant="error")
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-confirm-delete":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
+
+
 class StoryDetailScreen(Screen):
     """Story detail: PRD editor + PM/Growth chat panels + finalize actions."""
 
@@ -150,6 +208,7 @@ class StoryDetailScreen(Screen):
     BINDINGS = [
         Binding("f", "finalize_pm", "Finalize PM →"),
         Binding("g", "finalize_growth", "Finalize Growth →"),
+        Binding("x", "delete_prd", "Delete PRD"),
         Binding("d", "mark_done", "Mark Done"),
         Binding("q,escape", "go_back", "Back"),
         Binding("tab", "switch_chat", "Switch Chat"),
@@ -226,6 +285,8 @@ class StoryDetailScreen(Screen):
             yield Button(
                 "[g] Finalize Growth → LAUNCH.md", id="btn-finalize-growth", variant="success"
             )
+            if self._story and _can_delete_prd(self._story.status):
+                yield Button("[x] Delete PRD", id="btn-delete-prd", variant="error")
             if self._story and self._story.status == StoryStatus.testing:
                 yield Button("[d] Mark Done", id="btn-mark-done", variant="warning")
 
@@ -616,6 +677,33 @@ class StoryDetailScreen(Screen):
     def action_finalize_growth(self) -> None:
         asyncio.create_task(self._do_finalize_growth())
 
+    def action_delete_prd(self) -> None:
+        asyncio.create_task(self._do_delete_prd())
+
+    async def _do_delete_prd(self) -> None:
+        if not self._story:
+            self.action_go_back()
+            return
+        if not _can_delete_prd(self._story.status):
+            self.notify(
+                "PRD deletion is only available during DRAFTING/REFINING.",
+                severity="warning",
+            )
+            return
+
+        confirmed = await self.app.push_screen_wait(DeletePRDConfirmScreen(self._story.title))
+        if not confirmed:
+            return
+
+        story_id = self._story.id
+        async with get_session() as session:
+            db_story = await session.get(Story, story_id)
+            if db_story is not None:
+                await session.delete(db_story)
+
+        self.notify("PRD deleted.", title="Deleted")
+        self.action_go_back()
+
     async def _do_finalize_growth(self) -> None:
         """Generate LAUNCH.md from growth conversation."""
         story = await self._ensure_story_exists()
@@ -659,6 +747,14 @@ class StoryDetailScreen(Screen):
 
     def action_go_back(self) -> None:
         self.app.pop_screen()
+        try:
+            from agentboard.tui.screens.board import BoardScreen
+
+            current = self.app.screen
+            if isinstance(current, BoardScreen):
+                asyncio.create_task(current.refresh_board())
+        except Exception:
+            pass
 
     def action_switch_chat(self) -> None:
         """Toggle between PM and Growth chat panels."""
@@ -675,5 +771,7 @@ class StoryDetailScreen(Screen):
             self.action_finalize_pm()
         elif event.button.id == "btn-finalize-growth":
             self.action_finalize_growth()
+        elif event.button.id == "btn-delete-prd":
+            self.action_delete_prd()
         elif event.button.id == "btn-mark-done":
             self.action_mark_done()

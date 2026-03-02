@@ -22,6 +22,7 @@ Story-driven multi-agent development TUI. Write a PRD in your terminal; AI agent
 |---------|--------|---------|
 | 5-section PRD editor (Problem / Solution / Scope / Acceptance / GTM) | done | Editable while DRAFTING/REFINING; read-only after finalize |
 | GTM mandatory gate | done | PM refuses to suggest finalization without GTM; warns on card with [GTM ⚠] badge |
+| PRD deletion (safe stage) | done | User can delete PRD with confirmation while DRAFTING/REFINING |
 
 ---
 
