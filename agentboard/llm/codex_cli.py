@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import shutil
+import tempfile
 from collections.abc import AsyncIterator, Callable
+from pathlib import Path
 
 
 class CodexCLIClient:
-    """Invokes `codex <prompt>` as an asyncio subprocess."""
+    """Invokes `codex exec <prompt>` as an asyncio subprocess."""
 
     def __init__(self, cli_path: str = "codex") -> None:
         self.cli_path = cli_path
@@ -35,6 +37,30 @@ class CodexCLIClient:
             parts.append(f"{role}: {msg['content']}")
         return "\n\n".join(parts)
 
+    def _build_exec_cmd(
+        self,
+        prompt: str,
+        *,
+        workspace: str | None = None,
+        output_last_message_file: str | None = None,
+        json_output: bool = False,
+    ) -> list[str]:
+        cmd = [
+            self.cli_path,
+            "exec",
+            prompt,
+            "--full-auto",
+            "--color",
+            "never",
+        ]
+        if output_last_message_file:
+            cmd.extend(["--output-last-message", output_last_message_file])
+        if json_output:
+            cmd.append("--json")
+        if workspace:
+            cmd.extend(["-C", workspace])
+        return cmd
+
     async def complete(
         self,
         system: str,
@@ -43,19 +69,32 @@ class CodexCLIClient:
         max_tokens: int = 4096,
     ) -> str:
         """Run completion and return full response text."""
+        del max_tokens
         prompt = self._build_prompt(system, messages)
-        proc = await asyncio.create_subprocess_exec(
-            self.cli_path,
-            prompt,
-            "--full-auto",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            err = stderr.decode().strip()
-            raise RuntimeError(f"codex CLI exited with code {proc.returncode}: {err}")
-        return stdout.decode().strip()
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            output_file = tmp.name
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *self._build_exec_cmd(prompt, output_last_message_file=output_file),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                err = stderr.decode().strip()
+                raise RuntimeError(f"codex CLI exited with code {proc.returncode}: {err}")
+
+            response = Path(output_file).read_text(encoding="utf-8").strip()
+            if response:
+                return response
+
+            fallback = stdout.decode().strip()
+            if fallback:
+                return fallback
+            raise RuntimeError("codex CLI returned an empty response")
+        finally:
+            Path(output_file).unlink(missing_ok=True)
 
     async def stream(
         self,
@@ -65,26 +104,11 @@ class CodexCLIClient:
         *,
         max_tokens: int = 4096,
     ) -> AsyncIterator[str]:
-        """Stream response — codex streams stdout line by line."""
-        prompt = self._build_prompt(system, messages)
-        proc = await asyncio.create_subprocess_exec(
-            self.cli_path,
-            prompt,
-            "--full-auto",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        assert proc.stdout is not None
-        async for raw_line in proc.stdout:
-            chunk = raw_line.decode()
-            on_token(chunk)
-            yield chunk
-
-        await proc.wait()
-        if proc.returncode not in (0, None):
-            stderr_data = await proc.stderr.read() if proc.stderr else b""  # type: ignore[union-attr]
-            err = stderr_data.decode().strip()
-            raise RuntimeError(f"codex CLI exited with code {proc.returncode}: {err}")
+        """Stream response; codex exec provides stable non-interactive final output."""
+        text = await self.complete(system, messages, max_tokens=max_tokens)
+        if text:
+            on_token(text)
+            yield text
 
     async def run_agent(
         self,
@@ -98,10 +122,7 @@ class CodexCLIClient:
         """Run codex as a headless coding agent in a workspace directory."""
         prompt = f"{system}\n\n{task}"
         proc = await asyncio.create_subprocess_exec(
-            self.cli_path,
-            prompt,
-            "--full-auto",
-            cwd=workspace,
+            *self._build_exec_cmd(prompt, workspace=workspace),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

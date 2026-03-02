@@ -328,6 +328,10 @@ class StoryDetailScreen(Screen):
             return
 
         self._pm_chat.finish_streaming()
+        if not full_response.strip():
+            self._pm_chat.add_message("assistant", "Error: PM agent returned an empty response.")
+            self.notify("PM agent returned an empty response", severity="warning")
+            return
 
         # Save assistant response
         async with get_session() as session:
@@ -373,6 +377,12 @@ class StoryDetailScreen(Screen):
             return
 
         self._growth_chat.finish_streaming()
+        if not full_response.strip():
+            self._growth_chat.add_message(
+                "assistant", "Error: Growth agent returned an empty response."
+            )
+            self.notify("Growth agent returned an empty response", severity="warning")
+            return
 
         # Save assistant response
         async with get_session() as session:
