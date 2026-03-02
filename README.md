@@ -21,7 +21,7 @@
 
 1. **Write a PRD** — fill in Problem, Solution, Scope, Acceptance Criteria, and GTM
 2. **Refine with PM Agent** — conversational Q&A that sharpens scope and ensures GTM is solid
-3. **Finalize** — PM decomposes the PRD into engineering tickets and routes them to specialized agents
+3. **Finalize** — after at least one PM user/assistant exchange, PM decomposes the PRD into engineering tickets (one-time action per story)
 4. **Agents execute** — backend, frontend, QA, devops agents run in parallel, commit code, create PRs
 5. **Test** — when all tickets are done, you're notified to test; bugs filed here create new tickets automatically
 6. **Ship** — mark done, LAUNCH.md is already in your repo
@@ -85,7 +85,7 @@ archive_after_days: 7
 | `n` | New story |
 | `Enter` | Open story |
 | `Tab` | Switch between PM and Growth chat panels |
-| `f` | Finalize PM → create tickets, start engineering |
+| `f` | Finalize PM once → create tickets, start engineering (requires PM exchange) |
 | `g` | Finalize Growth → generate LAUNCH.md |
 | `d` | Mark story done |
 | `h` | Force heartbeat check |

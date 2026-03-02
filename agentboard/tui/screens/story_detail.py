@@ -31,6 +31,17 @@ from agentboard.tui.widgets.chat_panel import ChatPanel
 from agentboard.tui.widgets.ticket_grid import TicketGrid
 
 
+def _can_finalize_pm(status: StoryStatus) -> bool:
+    """PM finalize is a one-time action, only while refining the initial PRD."""
+    return status in (StoryStatus.drafting, StoryStatus.refining)
+
+
+def _has_pm_conversation(messages: list[StoryMessage]) -> bool:
+    """Require at least one user message and one PM assistant reply."""
+    roles = {msg.role for msg in messages}
+    return MessageRole.user in roles and MessageRole.assistant in roles
+
+
 class PRDEditor(Vertical):
     """Editable PRD editor — left panel of story detail."""
 
@@ -451,6 +462,21 @@ class StoryDetailScreen(Screen):
         # Validate against effective persisted values, not raw editor input
         if not all(effective.values()):
             self.notify("PRD is incomplete — fill all sections including GTM", severity="warning")
+            return
+
+        if not _can_finalize_pm(story.status):
+            self.notify(
+                "PM finalize is only available once during DRAFTING/REFINING.",
+                severity="warning",
+            )
+            return
+
+        history = await self._load_pm_history(story.id)
+        if not _has_pm_conversation(history):
+            self.notify(
+                "Start a PM conversation first (at least one user message and one PM reply).",
+                severity="warning",
+            )
             return
 
         self.notify("Decomposing story into tickets...", title="PM Finalizing")

@@ -62,6 +62,7 @@ When acting as PM during story refinement (DRAFTING phase):
    - **Acceptance Criteria** — how we know it works
    - **GTM** — growth lever, channels, monetization (mandatory — no finalize without it)
 6. Keep responses conversational and under 200 words
+7. PM finalize policy: require at least one user <-> PM exchange before decomposing an initial PRD, and allow PM finalize only once per story
 
 When decomposing a finalized PRD (output ONLY valid JSON):
 - `engineering_tickets[]` — each with: index, title, prd_anchor, agent_type, runtime, priority, complexity, branch_name, refined_description, acceptance_criteria, context_files, depends_on, reasoning

@@ -31,6 +31,7 @@ Story-driven multi-agent development TUI. Write a PRD in your terminal; AI agent
 |---------|--------|---------|
 | Conversational refinement | done | Streaming chat in TUI; asks 2-3 questions per response |
 | GTM prompting | done | Always asks about growth lever, channels, monetization if GTM missing |
+| PM finalize guard | done | Requires at least one PM user/assistant exchange and allows PM finalize only once per story |
 | Decomposition on finalize | done | Outputs structured JSON with engineering tickets + marketing ticket |
 | prd_anchor linking | done | Each ticket tagged with the PRD section it was sliced from |
 | PRD diff analysis | done | Detects changed sections, marks affected tickets as stale |
