@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
@@ -10,6 +12,7 @@ from textual.widgets import Footer, Header, Static
 
 from agentboard.core.db import get_session
 from agentboard.core.models import Story, StoryStatus
+from agentboard.tui.screens.story_detail import DeletePRDConfirmScreen
 from agentboard.tui.widgets.story_card import StoryCard
 
 _COLUMNS = [
@@ -20,6 +23,10 @@ _COLUMNS = [
 ]
 
 _COLUMN_LABELS = ["DRAFTING", "ENGINEERING", "TESTING", "DONE"]
+
+
+def _can_delete_story(status: StoryStatus) -> bool:
+    return status in (StoryStatus.drafting, StoryStatus.refining)
 
 
 class KanbanColumn(Vertical):
@@ -73,6 +80,7 @@ class BoardScreen(Screen):
     BINDINGS = [
         Binding("n", "new_story", "New Story"),
         Binding("enter", "open_story", "Open Story"),
+        Binding("x", "delete_story", "Delete PRD"),
         Binding("h", "force_heartbeat", "Heartbeat"),
         Binding("q", "quit_app", "Quit"),
         Binding("?", "show_help", "Help"),
@@ -150,9 +158,38 @@ class BoardScreen(Screen):
 
     def action_show_help(self) -> None:
         self.notify(
-            "[n] New story  [Enter] Open  [h] Heartbeat  [q] Quit",
+            "[n] New story  [Enter] Open  [x] Delete PRD  [h] Heartbeat  [q] Quit",
             title="Keyboard Shortcuts",
         )
+
+    def action_delete_story(self) -> None:
+        asyncio.create_task(self._do_delete_story())
+
+    async def _do_delete_story(self) -> None:
+        focused = self.focused
+        if not isinstance(focused, StoryCard):
+            self.notify("Focus a story card first.", severity="warning")
+            return
+
+        story = focused._story
+        if not _can_delete_story(story.status):
+            self.notify(
+                "PRD deletion is only available during DRAFTING/REFINING.",
+                severity="warning",
+            )
+            return
+
+        confirmed = await self.app.push_screen_wait(DeletePRDConfirmScreen(story.title))
+        if not confirmed:
+            return
+
+        async with get_session() as session:
+            db_story = await session.get(Story, story.id)
+            if db_story is not None:
+                await session.delete(db_story)
+
+        self.notify("PRD deleted.", title="Deleted")
+        await self.refresh_board()
 
     def on_story_card_focus(self) -> None:
         pass

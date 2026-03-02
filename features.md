@@ -12,7 +12,7 @@ Story-driven multi-agent development TUI. Write a PRD in your terminal; AI agent
 |---------|--------|---------|
 | 4-column Kanban (DRAFTING / ENGINEERING / TESTING / DONE) | done | Textual TUI with full keyboard navigation |
 | Story cards with progress bars and agent badges | done | Shows N/M tickets done, agent type abbreviations (BE FE QA), GTM warning, bug count |
-| Keyboard navigation | done | [n] new, [enter] open, [tab] switch chat, [f] finalize PM, [g] finalize growth, [d] done, [h] heartbeat |
+| Keyboard navigation | done | [n] new, [enter] open, [x] delete PRD, [tab] switch chat, [f] finalize PM, [g] finalize growth, [d] done, [h] heartbeat |
 
 ---
 
@@ -22,7 +22,7 @@ Story-driven multi-agent development TUI. Write a PRD in your terminal; AI agent
 |---------|--------|---------|
 | 5-section PRD editor (Problem / Solution / Scope / Acceptance / GTM) | done | Editable while DRAFTING/REFINING; read-only after finalize |
 | GTM mandatory gate | done | PM refuses to suggest finalization without GTM; warns on card with [GTM ⚠] badge |
-| PRD deletion (safe stage) | done | User can delete PRD with confirmation while DRAFTING/REFINING |
+| PRD deletion (safe stage) | done | User can delete PRD from board or story detail with confirmation while DRAFTING/REFINING |
 
 ---
 

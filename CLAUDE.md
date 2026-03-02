@@ -40,7 +40,7 @@ tests/                      # pytest test suite
 - `StoryMessage` / `GrowthMessage` — conversation history (persisted, replayed)
 
 **Story flow:** DRAFTING → ENGINEERING → TESTING → DONE
-PRD deletion policy: users may delete a PRD only while the story is in DRAFTING/REFINING, with explicit confirmation.
+PRD deletion policy: users may delete a PRD from board/detail only while the story is in DRAFTING/REFINING, with explicit confirmation.
 
 **Agent routing:**
 - **Claude**: multi-file changes, architectural reasoning, complex refactoring, vague requirements, CI/CD
