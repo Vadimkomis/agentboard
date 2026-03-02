@@ -310,6 +310,7 @@ class StoryDetailScreen(Screen):
 
         story = await self._ensure_story_exists()
         self._pm_chat.start_streaming()
+        history = await self._load_pm_history(story.id)
 
         # Save user message
         async with get_session() as session:
@@ -322,7 +323,6 @@ class StoryDetailScreen(Screen):
 
         # Stream PM response
         pm_agent = self.app.pm_agent  # type: ignore[attr-defined]
-        history = await self._load_pm_history(story.id)
 
         full_response = ""
         try:
@@ -360,6 +360,7 @@ class StoryDetailScreen(Screen):
 
         story = await self._ensure_story_exists()
         self._growth_chat.start_streaming()
+        history = await self._load_growth_history(story.id)
 
         # Save user message
         async with get_session() as session:
@@ -371,7 +372,6 @@ class StoryDetailScreen(Screen):
             session.add(user_msg)
 
         growth_agent = self.app.growth_agent  # type: ignore[attr-defined]
-        history = await self._load_growth_history(story.id)
 
         full_response = ""
         try:
@@ -473,9 +473,12 @@ class StoryDetailScreen(Screen):
 
         history = await self._load_pm_history(story.id)
         if not _has_pm_conversation(history):
+            await self._handle_pm_message(
+                "I've submitted the initial PRD draft. Review it and ask 2-3 clarifying "
+                "questions before we finalize."
+            )
             self.notify(
-                "Start a PM conversation first (at least one user message and one PM reply).",
-                severity="warning",
+                "PM refinement started. Reply in PM chat, then finalize again.",
             )
             return
 
