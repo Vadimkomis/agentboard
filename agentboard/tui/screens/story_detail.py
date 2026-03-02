@@ -30,6 +30,8 @@ from agentboard.core.models import (
 from agentboard.tui.widgets.chat_panel import ChatPanel
 from agentboard.tui.widgets.ticket_grid import TicketGrid
 
+PM_DISCUSSION_MARKER = "__pm_discussion_started__"
+
 
 def _can_finalize_pm(status: StoryStatus) -> bool:
     """PM finalize is a one-time action, only while refining the initial PRD."""
@@ -40,6 +42,16 @@ def _has_pm_conversation(messages: list[StoryMessage]) -> bool:
     """Require at least one user message and one PM assistant reply."""
     roles = {msg.role for msg in messages}
     return MessageRole.user in roles and MessageRole.assistant in roles
+
+
+def _has_pm_discussion_marker(messages: list[StoryMessage]) -> bool:
+    return any(msg.role == MessageRole.system and msg.content == PM_DISCUSSION_MARKER for msg in messages)
+
+
+def _should_auto_start_pm_discussion(
+    status: StoryStatus, prd_complete: bool, discussion_started: bool
+) -> bool:
+    return status in (StoryStatus.drafting, StoryStatus.refining) and prd_complete and not discussion_started
 
 
 class PRDEditor(Vertical):
@@ -175,6 +187,7 @@ class StoryDetailScreen(Screen):
         self._pm_chat: ChatPanel | None = None
         self._growth_chat: ChatPanel | None = None
         self._current_chat = "pm"
+        self._pm_kickoff_in_flight = False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -229,6 +242,17 @@ class StoryDetailScreen(Screen):
         # Load existing messages
         if self._story:
             await self._load_history()
+            pm_messages = await self._load_pm_all_messages(self._story.id)
+            has_marker = _has_pm_discussion_marker(pm_messages)
+            if _has_pm_conversation(pm_messages) and not has_marker:
+                await self._record_pm_discussion_marker(self._story.id)
+                has_marker = True
+            if _should_auto_start_pm_discussion(
+                self._story.status,
+                self._story.prd_complete,
+                has_marker,
+            ):
+                asyncio.create_task(self._kickoff_pm_discussion(self._story))
             # Load ticket grid
             try:
                 grid = self.query_one("#ticket-grid", TicketGrid)
@@ -266,12 +290,58 @@ class StoryDetailScreen(Screen):
             growth_result = await session.execute(growth_stmt)
 
             for msg in pm_result.scalars():
-                if self._pm_chat:
+                if self._pm_chat and msg.role != MessageRole.system:
                     self._pm_chat.add_message(msg.role.value, msg.content)
 
             for msg in growth_result.scalars():
                 if self._growth_chat:
                     self._growth_chat.add_message(msg.role.value, msg.content)
+
+    async def _kickoff_pm_discussion(self, story: Story) -> None:
+        """Start PM refinement for an existing PRD without requiring user input first."""
+        if not self._pm_chat or self._pm_kickoff_in_flight:
+            return
+
+        self._pm_kickoff_in_flight = True
+        try:
+            self._pm_chat.start_streaming()
+            history = await self._load_pm_history(story.id)
+            pm_agent = self.app.pm_agent  # type: ignore[attr-defined]
+            kickoff_message = (
+                "The user opened an existing PRD story for refinement. Review the PRD and ask 2-3 "
+                "sharp clarifying questions before finalization."
+            )
+
+            full_response = ""
+            async for token in await pm_agent.refine(
+                story=story,
+                user_message=kickoff_message,
+                history=history,
+                on_token=self._pm_chat.append_token,
+            ):
+                full_response += token
+
+            self._pm_chat.finish_streaming()
+            if not full_response.strip():
+                self._pm_chat.add_message("assistant", "Error: PM agent returned an empty response.")
+                self.notify("PM agent returned an empty response", severity="warning")
+                return
+
+            async with get_session() as session:
+                session.add(
+                    StoryMessage(
+                        story_id=story.id,
+                        role=MessageRole.assistant,
+                        content=full_response,
+                    )
+                )
+
+            await self._record_pm_discussion_marker(story.id)
+        except Exception as e:
+            self._pm_chat.finish_streaming()
+            self._pm_chat.add_message("assistant", f"Error: {e}")
+        finally:
+            self._pm_kickoff_in_flight = False
 
     def _on_pm_message(self, text: str) -> None:
         """Handle user sending a PM chat message."""
@@ -352,6 +422,7 @@ class StoryDetailScreen(Screen):
                 content=full_response,
             )
             session.add(asst_msg)
+        await self._record_pm_discussion_marker(story.id)
 
     async def _handle_growth_message(self, text: str) -> None:
         """Stream a Growth agent response."""
@@ -414,7 +485,42 @@ class StoryDetailScreen(Screen):
                 .order_by(StoryMessage.id)
             )
             result = await session.execute(stmt)
+            return [msg for msg in result.scalars().all() if msg.role != MessageRole.system]
+
+    async def _load_pm_all_messages(self, story_id: int) -> list[StoryMessage]:
+        async with get_session() as session:
+            from sqlalchemy import select
+
+            stmt = (
+                select(StoryMessage)
+                .where(StoryMessage.story_id == story_id)
+                .order_by(StoryMessage.id)
+            )
+            result = await session.execute(stmt)
             return list(result.scalars().all())
+
+    async def _record_pm_discussion_marker(self, story_id: int) -> None:
+        async with get_session() as session:
+            from sqlalchemy import select
+
+            stmt = (
+                select(StoryMessage)
+                .where(
+                    StoryMessage.story_id == story_id,
+                    StoryMessage.role == MessageRole.system,
+                    StoryMessage.content == PM_DISCUSSION_MARKER,
+                )
+                .limit(1)
+            )
+            existing = (await session.execute(stmt)).scalar_one_or_none()
+            if existing is None:
+                session.add(
+                    StoryMessage(
+                        story_id=story_id,
+                        role=MessageRole.system,
+                        content=PM_DISCUSSION_MARKER,
+                    )
+                )
 
     async def _load_growth_history(self, story_id: int) -> list[GrowthMessage]:
         async with get_session() as session:
@@ -471,12 +577,13 @@ class StoryDetailScreen(Screen):
             )
             return
 
-        history = await self._load_pm_history(story.id)
-        if not _has_pm_conversation(history):
-            await self._handle_pm_message(
-                "I've submitted the initial PRD draft. Review it and ask 2-3 clarifying "
-                "questions before we finalize."
-            )
+        all_pm_messages = await self._load_pm_all_messages(story.id)
+        has_marker = _has_pm_discussion_marker(all_pm_messages)
+        if _has_pm_conversation(all_pm_messages) and not has_marker:
+            await self._record_pm_discussion_marker(story.id)
+            has_marker = True
+        if not has_marker:
+            await self._kickoff_pm_discussion(story)
             self.notify(
                 "PM refinement started. Reply in PM chat, then finalize again.",
             )
