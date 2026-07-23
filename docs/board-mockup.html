@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgentBoard — Product Design</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --page: #0b0e13;
+      --panel: #11151c;
+      --panel-2: #171c24;
+      --panel-3: #1d232d;
+      --border: #2a313d;
+      --border-strong: #3a4453;
+      --text: #f5f7fa;
+      --muted: #8f99a8;
+      --quiet: #667181;
+      --accent: #9af0c8;
+      --accent-ink: #082017;
+      --blue: #8bb9ff;
+      --amber: #f4c96b;
+      --red: #ff8e91;
+      --violet: #c8a7ff;
+      --shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
+      --radius: 14px;
+    }
+    body.light {
+      color-scheme: light;
+      --page: #f3f5f7;
+      --panel: #ffffff;
+      --panel-2: #ffffff;
+      --panel-3: #e9edf1;
+      --border: #d8dee5;
+      --border-strong: #b7c0ca;
+      --text: #17202b;
+      --muted: #657181;
+      --quiet: #8792a0;
+      --accent: #247a58;
+      --accent-ink: #ffffff;
+      --blue: #2869b8;
+      --amber: #956a13;
+      --red: #b43f45;
+      --violet: #6e4db5;
+      --shadow: 0 20px 70px rgba(28, 39, 52, 0.18);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--page);
+      color: var(--text);
+      font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body.light .sidebar,
+    body.light .drawer-footer { background: #f8fafb; }
+    body.light .main {
+      background:
+        radial-gradient(circle at 70% -20%, rgba(40, 105, 184, 0.08), transparent 38%),
+        var(--page);
+    }
+    body.light .column { background: rgba(255, 255, 255, 0.7); }
+    body.light .card:hover { background: #f8fafc; }
+    body.light .mark { background: #e0f4ea; }
+    body.light .count { background: #fff2d4; }
+    body.light .drawer-status { border-color: #dfc88f; background: #fff8e8; color: #745311; }
+    body.light .tag { background: #edf1f5; }
+    body.light .tag.waiting { background: #fff2d4; }
+    body.light .tag.running { background: #e5f1ff; }
+    body.light .tag.review { background: #f0eaff; }
+    body.light .tag.done { background: #e0f4ea; }
+    button { font: inherit; }
+    .app {
+      display: grid;
+      grid-template-columns: 230px minmax(0, 1fr);
+      height: 100vh;
+    }
+    .sidebar {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: #0e1218;
+      padding: 18px 14px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 8px 22px;
+      font-size: 16px;
+      font-weight: 750;
+      letter-spacing: -0.02em;
+    }
+    .mark {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      border: 1px solid #75cfa8;
+      border-radius: 9px;
+      background: #123428;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .nav-label {
+      padding: 0 9px 7px;
+      color: var(--quiet);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .nav-item, .project-item {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      gap: 10px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--muted);
+      padding: 9px 10px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .nav-item.active, .project-item.active {
+      background: var(--panel-3);
+      color: var(--text);
+    }
+    .nav-item:hover, .project-item:hover { background: #171c24; color: var(--text); }
+    .nav-icon { width: 17px; color: var(--quiet); text-align: center; }
+    .count {
+      margin-left: auto;
+      border-radius: 999px;
+      background: #2a2420;
+      color: var(--amber);
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .divider { height: 1px; margin: 15px 8px; background: var(--border); }
+    .project-dot { width: 9px; height: 9px; border-radius: 3px; background: var(--blue); }
+    .project-dot.green { background: var(--accent); }
+    .project-dot.violet { background: var(--violet); }
+    .sidebar-bottom { margin-top: auto; }
+    .health {
+      margin: 12px 6px 0;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--panel);
+      padding: 11px;
+    }
+    .health-row { display: flex; align-items: center; gap: 8px; }
+    .health-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(154,240,200,.08); }
+    .health strong { font-size: 12px; }
+    .health p { margin: 5px 0 0 15px; color: var(--quiet); font-size: 11px; }
+
+    .main {
+      display: grid;
+      min-width: 0;
+      grid-template-rows: auto auto minmax(0, 1fr);
+      background:
+        radial-gradient(circle at 70% -20%, rgba(78, 111, 151, 0.12), transparent 38%),
+        var(--page);
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-bottom: 1px solid var(--border);
+      padding: 15px 22px;
+    }
+    .project-title { min-width: 0; }
+    .project-title h1 { margin: 0; font-size: 17px; letter-spacing: -0.02em; }
+    .project-title p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+    .top-actions { display: flex; align-items: center; gap: 9px; margin-left: auto; }
+    .icon-button, .secondary, .primary {
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 8px 11px;
+      cursor: pointer;
+    }
+    .icon-button { display: grid; width: 35px; height: 35px; place-items: center; padding: 0; color: var(--muted); }
+    .primary {
+      border-color: #82d8b3;
+      background: var(--accent);
+      color: var(--accent-ink);
+      font-weight: 750;
+    }
+    .context-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 22px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(23, 28, 36, 0.75);
+      padding: 5px 9px;
+    }
+    .pill b { color: var(--text); }
+    .live { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .context-spacer { flex: 1; }
+    .hidden { display: none !important; }
+    .board-shell { min-width: 0; overflow: auto; padding: 18px 22px 28px; }
+    .board {
+      display: grid;
+      min-width: 1280px;
+      grid-template-columns: repeat(5, minmax(236px, 1fr));
+      gap: 12px;
+      align-items: start;
+    }
+    .column {
+      min-height: calc(100vh - 176px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: rgba(17, 21, 28, 0.72);
+      padding: 10px;
+    }
+    .column-header {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 2px 2px 11px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+    .state-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--quiet); }
+    .state-dot.blue { background: var(--blue); }
+    .state-dot.amber { background: var(--amber); }
+    .state-dot.violet { background: var(--violet); }
+    .state-dot.green { background: var(--accent); }
+    .state-dot.red { background: var(--red); }
+    .column-count {
+      margin-left: auto;
+      color: var(--quiet);
+      font-variant-numeric: tabular-nums;
+    }
+    .card {
+      position: relative;
+      margin-bottom: 9px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--panel-2);
+      padding: 11px;
+      box-shadow: 0 1px 0 rgba(255,255,255,.02);
+      cursor: pointer;
+      transition: transform .14s ease, border-color .14s ease, background .14s ease;
+    }
+    .card:hover { transform: translateY(-2px); border-color: var(--border-strong); background: #1b212b; }
+    .card.selected { border-color: #75cfa8; box-shadow: 0 0 0 1px rgba(154,240,200,.12); }
+    .card-top { display: flex; justify-content: space-between; color: var(--quiet); font-size: 10px; }
+    .card h3 { margin: 7px 0 9px; font-size: 13px; line-height: 1.35; letter-spacing: -0.01em; }
+    .tag {
+      display: inline-flex;
+      border-radius: 6px;
+      background: #222a35;
+      color: var(--muted);
+      padding: 3px 6px;
+      font-size: 10px;
+    }
+    .tag.waiting { background: #332a1c; color: var(--amber); }
+    .tag.running { background: #182b3d; color: var(--blue); }
+    .tag.review { background: #292038; color: var(--violet); }
+    .tag.done { background: #163027; color: var(--accent); }
+    .card-footer {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      color: var(--quiet);
+      font-size: 10px;
+    }
+    .avatar {
+      display: grid;
+      width: 20px;
+      height: 20px;
+      place-items: center;
+      border: 1px solid var(--border-strong);
+      border-radius: 50%;
+      background: #242b35;
+      color: var(--text);
+      font-size: 8px;
+      font-weight: 800;
+    }
+    .card-footer .time { margin-left: auto; }
+    .empty {
+      border: 1px dashed #282f3a;
+      border-radius: 10px;
+      color: #555f6d;
+      padding: 18px 8px;
+      text-align: center;
+      font-size: 11px;
+    }
+    .backlog-shell { min-width: 0; overflow: auto; padding: 18px 22px 32px; }
+    .backlog-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 14px;
+    }
+    .backlog-toolbar h2 { margin: 0 10px 0 0; font-size: 18px; letter-spacing: -.02em; }
+    .search-field {
+      width: 270px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      outline: none;
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 8px 11px;
+    }
+    .backlog-group {
+      min-width: 900px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+      overflow: hidden;
+    }
+    .backlog-group-head {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-2);
+      padding: 10px 13px;
+    }
+    .sprint-progress {
+      width: 150px;
+      height: 5px;
+      margin-left: auto;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--border);
+    }
+    .sprint-progress span { display: block; width: 58%; height: 100%; background: var(--accent); }
+    .sprint-action { margin-left: 4px; }
+    .backlog-group-head strong { font-size: 12px; }
+    .backlog-group-head span { color: var(--quiet); font-size: 11px; }
+    .backlog-row {
+      display: grid;
+      grid-template-columns: 24px 66px minmax(280px, 1fr) 120px 86px 70px 80px 34px;
+      align-items: center;
+      min-height: 44px;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      padding: 0 12px;
+      cursor: pointer;
+    }
+    .backlog-row:last-child { border-bottom: 0; }
+    .backlog-row:hover { background: var(--panel-2); }
+    .grip { color: var(--quiet); cursor: grab; letter-spacing: -2px; }
+    .feature-key { color: var(--blue); font-size: 11px; font-weight: 700; }
+    .feature-name { font-size: 12px; font-weight: 650; }
+    .stage {
+      justify-self: start;
+      border-radius: 999px;
+      background: var(--panel-3);
+      color: var(--muted);
+      padding: 3px 7px;
+      font-size: 10px;
+    }
+    .stage.design { color: var(--violet); }
+    .stage.spec { color: var(--blue); }
+    .stage.blocked { color: var(--amber); }
+    .priority { color: var(--muted); font-size: 11px; }
+    .estimate { color: var(--quiet); font-size: 11px; text-align: center; }
+    .row-owner { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+    .readiness { color: var(--quiet); text-align: center; }
+
+    .scrim {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      visibility: hidden;
+      background: rgba(4, 6, 9, .58);
+      opacity: 0;
+      transition: opacity .18s ease;
+    }
+    .scrim.open { visibility: visible; opacity: 1; }
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      z-index: 30;
+      display: grid;
+      width: min(680px, 92vw);
+      height: 100vh;
+      grid-template-rows: auto auto minmax(0,1fr) auto;
+      border-left: 1px solid var(--border-strong);
+      background: #11151c;
+      box-shadow: var(--shadow);
+      transform: translateX(101%);
+      transition: transform .22s ease;
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer-head { display: flex; align-items: flex-start; gap: 14px; padding: 22px 24px 16px; }
+    .drawer-head h2 { margin: 4px 0 4px; font-size: 20px; letter-spacing: -0.03em; }
+    .drawer-head p { margin: 0; color: var(--muted); font-size: 12px; }
+    .close { margin-left: auto; }
+    .drawer-status {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 24px 16px;
+      border: 1px solid #4b4026;
+      border-radius: 11px;
+      background: #211d15;
+      padding: 11px 13px;
+      color: #e9ce8e;
+      font-size: 12px;
+    }
+    .tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--border); padding: 0 24px; }
+    .tab {
+      flex: none;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      padding: 10px 9px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .tab.active { border-bottom-color: var(--accent); color: var(--text); }
+    .drawer-body { overflow: auto; padding: 20px 24px 28px; }
+    .section { margin-bottom: 22px; }
+    .section-title { margin: 0 0 10px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric { border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); padding: 12px; }
+    .metric span { color: var(--quiet); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+    .metric strong { display: block; margin-top: 5px; font-size: 13px; }
+    .artifact {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      border-bottom: 1px solid var(--border);
+      padding: 11px 0;
+    }
+    .artifact-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; background: var(--panel-3); color: var(--blue); }
+    .artifact-copy { min-width: 0; }
+    .artifact-copy strong { display: block; font-size: 12px; }
+    .artifact-copy span { color: var(--quiet); font-size: 11px; }
+    .artifact-state { margin-left: auto; color: var(--accent); font-size: 10px; font-weight: 750; }
+    .artifact-state.pending { color: var(--amber); }
+    .timeline { position: relative; padding-left: 20px; }
+    .timeline:before { position: absolute; top: 6px; bottom: 8px; left: 5px; width: 1px; background: var(--border); content: ""; }
+    .event { position: relative; margin-bottom: 14px; }
+    .event:before { position: absolute; top: 5px; left: -18px; width: 7px; height: 7px; border: 2px solid var(--panel); border-radius: 50%; background: var(--quiet); content: ""; }
+    .event strong { font-size: 12px; }
+    .event p { margin: 2px 0 0; color: var(--quiet); font-size: 11px; }
+    .drawer-footer {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      border-top: 1px solid var(--border);
+      background: #0f1319;
+      padding: 14px 24px;
+    }
+    .drawer-footer .hint { margin-right: auto; color: var(--quiet); font-size: 11px; }
+
+    @media (max-width: 760px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .context-bar { overflow-x: auto; }
+      .summary-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="mark">AB</span> AgentBoard</div>
+      <div class="nav-label">Workspace</div>
+      <button class="nav-item"><span class="nav-icon">◫</span> Portfolio</button>
+      <button class="nav-item active" id="boardNav"><span class="nav-icon">▦</span> Project board</button>
+      <button class="nav-item" id="backlogNav"><span class="nav-icon">☷</span> Backlog <span class="count">7</span></button>
+      <button class="nav-item"><span class="nav-icon">✓</span> Approvals <span class="count">3</span></button>
+      <button class="nav-item"><span class="nav-icon">⌁</span> Activity</button>
+      <div class="divider"></div>
+      <div class="nav-label">Projects</div>
+      <button class="project-item active"><span class="project-dot green"></span> AgentBoard</button>
+      <button class="project-item"><span class="project-dot"></span> Trail Journal</button>
+      <button class="project-item"><span class="project-dot violet"></span> AI Playbook</button>
+      <button class="project-item"><span class="nav-icon">＋</span> New project</button>
+      <div class="sidebar-bottom">
+        <button class="nav-item"><span class="nav-icon">⚙</span> Settings</button>
+        <div class="health">
+          <div class="health-row"><span class="health-dot"></span><strong>Linux control plane</strong></div>
+          <p>Healthy · backed up 14m ago</p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="project-title">
+          <h1>AgentBoard</h1>
+          <p>Multi-project software mission control</p>
+        </div>
+        <div class="top-actions">
+          <button class="icon-button" id="theme" title="Switch appearance">☀</button>
+          <button class="icon-button" title="Search">⌕</button>
+          <button class="icon-button" title="Filter">≡</button>
+          <button class="secondary">Project settings</button>
+          <button class="primary">＋ New feature</button>
+        </div>
+      </header>
+
+      <div class="context-bar">
+        <span class="pill"><span class="live"></span><b>Live</b> Linux</span>
+        <span class="pill">Repository <b>Vadimkomis/agentboard</b></span>
+        <span class="pill">Execution <b>Serial</b></span>
+        <span class="pill">Backlog <b>7 features</b></span>
+        <span class="pill">Engineering <b>7 active</b></span>
+        <span class="context-spacer"></span>
+        <span>Updated just now</span>
+      </div>
+
+      <section class="board-shell" id="boardView">
+        <div class="board">
+          <section class="column">
+            <div class="column-header"><span class="state-dot violet"></span>Ready for engineering<span class="column-count">2</span></div>
+            <article class="card selected" data-open>
+              <div class="card-top"><span>AB-21</span><span>•••</span></div>
+              <h3>Multi-project board foundation</h3>
+              <span class="tag review">Design approved</span>
+              <div class="card-footer"><span class="avatar">V</span><span>No PR yet</span><span class="time">4m</span></div>
+            </article>
+            <article class="card">
+              <div class="card-top"><span>AB-18</span><span>•••</span></div>
+              <h3>Project filesystem containment</h3>
+              <span class="tag">Ready</span>
+              <div class="card-footer"><span class="avatar">V</span><span>No PR yet</span><span class="time">1h</span></div>
+            </article>
+          </section>
+
+          <section class="column">
+            <div class="column-header"><span class="state-dot blue"></span>Working<span class="column-count">2</span></div>
+            <article class="card">
+              <div class="card-top"><span>AB-16</span><span>PR #42</span></div>
+              <h3>Durable event history</h3>
+              <span class="tag running">Draft PR · 3 commits</span>
+              <div class="card-footer"><span class="avatar">CX</span><span>Codex</span><span class="time">9m</span></div>
+            </article>
+            <article class="card">
+              <div class="card-top"><span>AB-14</span><span>PR #39</span></div>
+              <h3>Restart reconciliation</h3>
+              <span class="tag waiting">Changes requested</span>
+              <div class="card-footer"><span class="avatar">CX</span><span>Rework 1</span><span class="time">12m</span></div>
+            </article>
+          </section>
+
+          <section class="column">
+            <div class="column-header"><span class="state-dot violet"></span>In review<span class="column-count">1</span></div>
+            <article class="card">
+              <div class="card-top"><span>AB-12</span><span>PR #37</span></div>
+              <h3>Signed owner sessions</h3>
+              <span class="tag review">Checks 8 / 11</span>
+              <div class="card-footer"><span class="avatar">QA</span><span>Validating</span><span class="time">6m</span></div>
+            </article>
+          </section>
+
+          <section class="column">
+            <div class="column-header"><span class="state-dot amber"></span>Human review<span class="column-count">1</span></div>
+            <article class="card">
+              <div class="card-top"><span>AB-09</span><span>PR #31</span></div>
+              <h3>Project archive and restore</h3>
+              <span class="tag waiting">Waiting for you</span>
+              <div class="card-footer"><span class="avatar">V</span><span>All checks pass</span><span class="time">1h</span></div>
+            </article>
+          </section>
+
+          <section class="column">
+            <div class="column-header"><span class="state-dot green"></span>Ready to merge<span class="column-count">1</span></div>
+            <article class="card">
+              <div class="card-top"><span>AB-05</span><span>PR #24</span></div>
+              <h3>Linux persistence layout</h3>
+              <span class="tag done">Approved · mergeable</span>
+              <div class="card-footer"><span class="avatar">V</span><span>Head 8ac91e</span><span class="time">18m</span></div>
+            </article>
+          </section>
+        </div>
+      </section>
+      <section class="backlog-shell hidden" id="backlogView">
+        <div class="backlog-toolbar">
+          <h2>AgentBoard backlog</h2>
+          <input class="search-field" type="search" placeholder="Search this project backlog" />
+          <button class="secondary">Stage ▾</button>
+          <button class="secondary">Priority ▾</button>
+          <button class="secondary">Owner ▾</button>
+          <span class="context-spacer"></span>
+          <button class="primary">＋ Create feature</button>
+        </div>
+
+        <section class="backlog-group">
+          <div class="backlog-group-head">
+            <strong>Current sprint · Sprint 1</strong>
+            <span>Jul 22 – Aug 2 · Establish the secure board foundation</span>
+            <div class="sprint-progress" title="58% complete"><span></span></div>
+            <span>18 / 31 pts</span>
+            <button class="secondary sprint-action">Sprint actions ▾</button>
+          </div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-21</span><span class="feature-name">Multi-project board foundation</span>
+            <span class="stage">Ready for engineering</span><span class="priority">Highest</span><span class="estimate">8 pts</span>
+            <span class="row-owner"><span class="avatar">V</span>Vadim</span><span class="readiness">—</span>
+          </div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-16</span><span class="feature-name">Durable event history</span>
+            <span class="stage spec">Working · PR #42</span><span class="priority">Highest</span><span class="estimate">8 pts</span>
+            <span class="row-owner"><span class="avatar">CX</span>Codex</span><span class="readiness">3 commits</span>
+          </div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-12</span><span class="feature-name">Signed owner sessions</span>
+            <span class="stage design">In Review · PR #37</span><span class="priority">High</span><span class="estimate">5 pts</span>
+            <span class="row-owner"><span class="avatar">QA</span>Validator</span><span class="readiness">8 / 11</span>
+          </div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-09</span><span class="feature-name">Project archive and restore</span>
+            <span class="stage blocked">Human Review · PR #31</span><span class="priority">Medium</span><span class="estimate">5 pts</span>
+            <span class="row-owner"><span class="avatar">V</span>Vadim</span><span class="readiness">Approve</span>
+          </div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-05</span><span class="feature-name">Linux persistence layout</span>
+            <span class="stage design">Ready to Merge · PR #24</span><span class="priority">High</span><span class="estimate">5 pts</span>
+            <span class="row-owner"><span class="avatar">V</span>Vadim</span><span class="readiness">Merge</span>
+          </div>
+        </section>
+
+        <section class="backlog-group">
+          <div class="backlog-group-head"><strong>Planning</strong><span>4 features · ranked for this project</span></div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-28</span><span class="feature-name">Encrypted backup management</span>
+            <span class="stage spec">Spec draft</span><span class="priority">Highest</span><span class="estimate">5 pts</span>
+            <span class="row-owner"><span class="avatar">V</span>Vadim</span><span class="readiness">—</span>
+          </div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-25</span><span class="feature-name">Obsidian project projection</span>
+            <span class="stage blocked">Clarifying</span><span class="priority">High</span><span class="estimate">8 pts</span>
+            <span class="row-owner"><span class="avatar">V</span>Vadim</span><span class="readiness">3 ?</span>
+          </div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-24</span><span class="feature-name">Worker health dashboard</span>
+            <span class="stage">Inbox</span><span class="priority">Medium</span><span class="estimate">—</span>
+            <span class="row-owner"><span class="avatar">V</span>Vadim</span><span class="readiness">—</span>
+          </div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-23</span><span class="feature-name">Repository credential rotation</span>
+            <span class="stage">Evals draft</span><span class="priority">Medium</span><span class="estimate">3 pts</span>
+            <span class="row-owner"><span class="avatar">V</span>Vadim</span><span class="readiness">—</span>
+          </div>
+        </section>
+
+        <section class="backlog-group">
+          <div class="backlog-group-head"><strong>Design</strong><span>3 features · complete design approval to move into engineering</span></div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-22</span><span class="feature-name">GitHub webhook reconciliation</span>
+            <span class="stage design">Design review</span><span class="priority">Highest</span><span class="estimate">8 pts</span>
+            <span class="row-owner"><span class="avatar">V</span>Vadim</span><span class="readiness">1 gate</span>
+          </div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-20</span><span class="feature-name">Owner authentication and recovery</span>
+            <span class="stage design">Design</span><span class="priority">High</span><span class="estimate">5 pts</span>
+            <span class="row-owner"><span class="avatar">V</span>Vadim</span><span class="readiness">—</span>
+          </div>
+          <div class="backlog-row">
+            <span class="grip">⠿</span><span class="feature-key">AB-19</span><span class="feature-name">Artifact revision invalidation</span>
+            <span class="stage design">Design review</span><span class="priority">High</span><span class="estimate">5 pts</span>
+            <span class="row-owner"><span class="avatar">V</span>Vadim</span><span class="readiness">2 gates</span>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div class="scrim open" id="scrim"></div>
+  <aside class="drawer open" id="drawer" aria-label="Feature details">
+    <div class="drawer-head">
+      <div>
+        <span class="tag review">AB-21 · Ready for engineering</span>
+        <h2>Multi-project board foundation</h2>
+        <p>Each project gets an isolated board while sharing one Linux control plane.</p>
+      </div>
+      <button class="icon-button close" id="close" aria-label="Close">×</button>
+    </div>
+    <div>
+      <div class="drawer-status"><span>◉</span><strong>Next action:</strong> start engineering to create and bind the primary draft PR.</div>
+      <nav class="tabs">
+        <button class="tab active">Overview</button>
+        <button class="tab">Specification</button>
+        <button class="tab">Evals</button>
+        <button class="tab">Product design</button>
+        <button class="tab">Technical design</button>
+        <button class="tab">History</button>
+      </nav>
+    </div>
+    <div class="drawer-body">
+      <section class="section">
+        <h3 class="section-title">Current foundation</h3>
+        <div class="summary-grid">
+          <div class="metric"><span>Selected spec</span><strong>Revision 2 · current</strong></div>
+          <div class="metric"><span>Acceptance evals</span><strong>32 required assertions</strong></div>
+          <div class="metric"><span>Execution policy</span><strong>Serial only</strong></div>
+          <div class="metric"><span>Storage authority</span><strong>Linux · healthy</strong></div>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="section-title">Review package</h3>
+        <div class="artifact">
+          <span class="artifact-icon">S</span>
+          <div class="artifact-copy"><strong>Product specification</strong><span>Revision 2 · approved foundation</span></div>
+          <span class="artifact-state">Current</span>
+        </div>
+        <div class="artifact">
+          <span class="artifact-icon">E</span>
+          <div class="artifact-copy"><strong>Acceptance eval contract</strong><span>32 assertions · security included</span></div>
+          <span class="artifact-state">Current</span>
+        </div>
+        <div class="artifact">
+          <span class="artifact-icon">UX</span>
+          <div class="artifact-copy"><strong>Browser product design</strong><span>Portfolio, board, Feature workspace</span></div>
+          <span class="artifact-state pending">Review</span>
+        </div>
+        <div class="artifact">
+          <span class="artifact-icon">A</span>
+          <div class="artifact-copy"><strong>Technical architecture</strong><span>FastAPI, HTMX, SQLite, systemd</span></div>
+          <span class="artifact-state pending">Review</span>
+        </div>
+      </section>
+
+      <section class="section">
+        <h3 class="section-title">Recent history</h3>
+        <div class="timeline">
+          <div class="event"><strong>Architecture draft published</strong><p>Six decisions requested · 4 minutes ago</p></div>
+          <div class="event"><strong>Browser mockup attached</strong><p>Portfolio and project board · just now</p></div>
+          <div class="event"><strong>Acceptance evals revised</strong><p>Browser reconnect and approval integrity added · 28 minutes ago</p></div>
+        </div>
+      </section>
+    </div>
+    <footer class="drawer-footer">
+      <span class="hint">Starting engineering creates one primary draft PR.</span>
+      <button class="secondary">Return to backlog</button>
+      <button class="primary">Start engineering</button>
+    </footer>
+  </aside>
+
+  <script>
+    const drawer = document.getElementById("drawer");
+    const scrim = document.getElementById("scrim");
+    const close = document.getElementById("close");
+    const theme = document.getElementById("theme");
+    const boardNav = document.getElementById("boardNav");
+    const backlogNav = document.getElementById("backlogNav");
+    const boardView = document.getElementById("boardView");
+    const backlogView = document.getElementById("backlogView");
+    const savedTheme = localStorage.getItem("agentboard-theme");
+    if (savedTheme === "light") document.body.classList.add("light");
+    const updateThemeIcon = () => {
+      theme.textContent = document.body.classList.contains("light") ? "☾" : "☀";
+    };
+    updateThemeIcon();
+    theme.addEventListener("click", () => {
+      document.body.classList.toggle("light");
+      localStorage.setItem(
+        "agentboard-theme",
+        document.body.classList.contains("light") ? "light" : "dark"
+      );
+      updateThemeIcon();
+    });
+    boardNav.addEventListener("click", () => {
+      boardNav.classList.add("active");
+      backlogNav.classList.remove("active");
+      boardView.classList.remove("hidden");
+      backlogView.classList.add("hidden");
+    });
+    backlogNav.addEventListener("click", () => {
+      backlogNav.classList.add("active");
+      boardNav.classList.remove("active");
+      backlogView.classList.remove("hidden");
+      boardView.classList.add("hidden");
+      drawer.classList.remove("open");
+      scrim.classList.remove("open");
+    });
+    const openDrawer = () => {
+      drawer.classList.add("open");
+      scrim.classList.add("open");
+    };
+    const closeDrawer = () => {
+      drawer.classList.remove("open");
+      scrim.classList.remove("open");
+    };
+    document.querySelectorAll("[data-open]").forEach((card) => card.addEventListener("click", openDrawer));
+    close.addEventListener("click", closeDrawer);
+    scrim.addEventListener("click", closeDrawer);
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((item) => item.classList.remove("active"));
+        tab.classList.add("active");
+      });
+    });
+  </script>
+</body>
+</html>
