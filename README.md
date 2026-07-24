@@ -130,6 +130,13 @@ AgentBoard runs entirely locally:
 - No servers, no Redis, no hosted services
 - API costs only for actual agent work
 
+## Inspiration
+
+AgentBoard's multi-agent workflow was inspired in part by
+[The Multi-Agent Architecture That Actually Ships](https://www.youtube.com/watch?v=ow1we5PzK-o),
+a talk by Luke Alvoeiro of Factory published by
+[AI Engineer](https://www.youtube.com/@aiDotEngineer).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
