@@ -1,6 +1,6 @@
 # AgentBoard v0 Technical Design
 
-Status: Draft for owner approval
+Status: Approved
 
 ## Simplicity rule
 
@@ -58,6 +58,8 @@ Small command handlers coordinate use cases such as:
 - approve design;
 - start engineering;
 - ingest PR facts;
+- start independent validation;
+- record a validator result;
 - approve PR;
 - enqueue Human Review notification;
 - record merge.
@@ -97,6 +99,19 @@ Only one Sprint may be active per Project.
 `merge_commit`, `merged_at`, `last_reconciled_at`
 
 One active primary PR may belong to a Feature.
+
+### ValidationRun
+
+`id`, `feature_id`, `pull_request_id`, `assignment_id`, `assignment_digest`,
+`subject_revision`, `validator_id`, `validator_session_id`,
+`implementation_worker_ids`, `implementation_session_ids`, `status`, `outcome`,
+`assignment_json`, `result_json`, `failure_signatures`, `started_at`,
+`completed_at`, `created_at`
+
+Statuses are `queued`, `running`, and `completed`. A completed run has the
+contract outcome `pass`, `fail`, or `error`. Assignment and result payloads are
+retained as immutable evidence. A result is current only when
+`subject_revision` equals the active primary PR's exact head revision.
 
 ### Approval
 
@@ -138,8 +153,10 @@ The engineering state is derived:
 
 - **Ready for Engineering:** approved design, active sprint, no PR.
 - **Working:** draft PR, active implementation, new commits, requested changes,
-  or failed checks requiring rework.
-- **In Review:** implementation finished; checks or validation running.
+  failed checks, or candidate validation failure requiring rework.
+- **In Review:** implementation finished; checks or validation are pending or
+  running, or validation ended in an infrastructure or protocol error requiring
+  attention.
 - **Human Review:** checks and validation pass for the exact PR head.
 - **Ready to Merge:** exact head approved and currently mergeable.
 - **Done:** GitHub confirms merge; shown in the active sprint's compact
@@ -159,6 +176,29 @@ Reports are read models over preserved SQLite records, not copied archive data.
 
 UI drag-and-drop cannot set engineering state.
 
+## Independent validation
+
+AgentBoard consumes the standalone `independent-validator/v1` assignment and
+result contract supplied by `ai-playbook`. AgentBoard owns the integration
+boundary:
+
+1. Read and freeze the active primary PR's exact head revision.
+2. Build and persist a schema-valid assignment containing approved checks,
+   acceptance criteria, relevant artifacts, and that immutable revision.
+3. Start a fresh validator session whose identity and session ID differ from
+   every recorded implementation worker and implementation session.
+4. Store the returned result before interpreting it.
+5. Validate both schemas, the assignment digest, semantic pair rules, validator
+   independence, and the inspected revision.
+6. Accept the outcome only when the result still targets the current PR head.
+
+A `pass` permits Human Review. A `fail` returns the Feature to Working. An
+`error` withholds a candidate verdict, leaves the Feature in In Review with an
+attention marker, and may be retried. Repeated stable failure signatures stop
+automatic retry and require owner action. A new PR commit invalidates every
+earlier validation result and pull-request approval for state derivation without
+deleting their audit history.
+
 ## GitHub synchronization
 
 GitHub webhooks provide fast updates. A periodic reconciliation query repairs
@@ -174,6 +214,10 @@ For each delivery:
 6. When the Feature newly enters Human Review, insert its notification delivery.
 7. Commit the state change, audit event, and notification delivery together.
 
+Webhook reconciliation and validator-result ingestion call the same state
+transition use case. Notification creation therefore follows the transition
+itself rather than depending on which input caused it.
+
 ## Human-attention notification delivery
 
 The application owns a small in-process delivery loop. It selects due
@@ -183,9 +227,12 @@ cannot enqueue a second delivery because the exact Feature, revision, kind, and
 destination form an idempotency key.
 
 The payload contains stable identifiers, project and Feature names, PR number
-and URL, exact head revision, and the AgentBoard review URL. It contains no
-repository credentials or application secrets. Requests are authenticated with
-a dedicated outbound secret kept outside SQLite.
+and URL, exact head revision, and the AgentBoard review URL. AgentBoard derives
+that link from a configured `review_base_url`; it never substitutes its
+localhost listener address. Enabling phone delivery requires an HTTPS or trusted
+private-network URL reachable by the phone. The payload contains no repository
+credentials or application secrets. Requests are authenticated with a dedicated
+outbound secret kept outside SQLite.
 
 For the first dogfood deployment, the endpoint is an OpenClaw ingress that
 delivers the notification to the owner's phone. AgentBoard does not know whether
@@ -211,6 +258,8 @@ button and stored in the browser.
 - Listen only on localhost by default. Remote access must be explicitly
   configured through a trusted private connection.
 - Access through SSH or a private network.
+- Treat `review_base_url` as separate from the listen address. Validate it at
+  startup before enabling phone notifications.
 - Run under a dedicated unprivileged operating-system account where practical.
 - Use authenticated sessions, CSRF protection, idempotency keys, and optimistic
   record versions.
@@ -227,14 +276,15 @@ configured root.
 1. Project, Feature, Sprint, and ranking models.
 2. Five-state engineering derivation and tests.
 3. PR binding, webhook ingestion, and reconciliation.
-4. Durable Human Review notifications and OpenClaw dogfood delivery.
-5. Browser authentication and shell.
-6. Backlog, Board, Feature detail, Approvals, and project Reports.
-7. Serial engineering execution.
-8. macOS and Linux deployment, backup, and restore.
+4. Independent-validator persistence, execution, and state derivation.
+5. Durable Human Review notifications and OpenClaw dogfood delivery.
+6. Browser authentication and shell.
+7. Backlog, Board, Feature detail, Approvals, and project Reports.
+8. Serial engineering execution.
+9. macOS and Linux deployment, backup, and restore.
 
 ## Approval
 
 Approving this document approves the modular-monolith stack, minimal data model,
-three primary project pages, five engineering states, one-PR rule, and eight
+three primary project pages, five engineering states, one-PR rule, and nine
 implementation slices.

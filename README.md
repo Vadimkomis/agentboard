@@ -2,6 +2,13 @@
 
 **Story-driven multi-agent development TUI** — write a PRD in your terminal, let AI agents handle all engineering and GTM work.
 
+> **Current and next version:** The code and usage instructions below describe
+> the current Textual TUI. The approved browser-based v0 direction is documented
+> in [the product brief](docs/product-brief.md),
+> [technical design](docs/architecture-design.md), and
+> [acceptance evals](docs/acceptance-evals.md). Its implementation is the next
+> development phase.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ AgentBoard  [b]oard [n]ew-story [?]help    ♥ 2min ago OK   │
