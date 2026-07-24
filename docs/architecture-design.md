@@ -208,7 +208,8 @@ button and stored in the browser.
 
 ## Security and deployment
 
-- Bind to loopback by default.
+- Listen only on localhost by default. Remote access must be explicitly
+  configured through a trusted private connection.
 - Access through SSH or a private network.
 - Run under a dedicated unprivileged operating-system account where practical.
 - Use authenticated sessions, CSRF protection, idempotency keys, and optimistic
