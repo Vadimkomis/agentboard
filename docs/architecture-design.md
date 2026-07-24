@@ -14,6 +14,7 @@ AgentBoard host (macOS or Linux)
     ├── FastAPI + server-rendered HTML
     ├── domain rules
     ├── GitHub synchronization
+    ├── notification delivery
     └── SQLite
 ```
 
@@ -58,12 +59,14 @@ Small command handlers coordinate use cases such as:
 - start engineering;
 - ingest PR facts;
 - approve PR;
+- enqueue Human Review notification;
 - record merge.
 
 ### Infrastructure
 
-Adapters handle SQLite, GitHub, filesystem paths, and later the engineering
-worker. Browser handlers never mutate database models directly.
+Adapters handle SQLite, GitHub, filesystem paths, the configured notification
+endpoint, and later the engineering worker. Browser handlers never mutate
+database models directly.
 
 ## Minimal data model
 
@@ -107,6 +110,15 @@ Kinds are `design` and `pull_request`.
 `id`, `project_id`, `feature_id`, `type`, `payload`, `created_at`
 
 This is a small audit table, not an event-sourcing framework.
+
+### NotificationDelivery
+
+`id`, `feature_id`, `kind`, `subject_revision`, `destination`, `status`,
+`attempt_count`, `next_attempt_at`, `sent_at`, `last_error`, `payload`,
+`created_at`
+
+`kind`, `feature_id`, `subject_revision`, and `destination` are unique together.
+This is a durable delivery record inside SQLite, not a general-purpose queue.
 
 ## State rules
 
@@ -159,7 +171,25 @@ For each delivery:
 3. Ignore facts older than the current provider revision.
 4. Update the PullRequest row.
 5. Recompute the Feature's engineering state.
-6. Commit the change and audit event together.
+6. When the Feature newly enters Human Review, insert its notification delivery.
+7. Commit the state change, audit event, and notification delivery together.
+
+## Human-attention notification delivery
+
+The application owns a small in-process delivery loop. It selects due
+`NotificationDelivery` rows, posts a bounded JSON payload to the configured
+endpoint, and records success or a retryable failure. Duplicate reconciliation
+cannot enqueue a second delivery because the exact Feature, revision, kind, and
+destination form an idempotency key.
+
+The payload contains stable identifiers, project and Feature names, PR number
+and URL, exact head revision, and the AgentBoard review URL. It contains no
+repository credentials or application secrets. Requests are authenticated with
+a dedicated outbound secret kept outside SQLite.
+
+For the first dogfood deployment, the endpoint is an OpenClaw ingress that
+delivers the notification to the owner's phone. AgentBoard does not know whether
+OpenClaw uses WhatsApp, a native push provider, or another phone channel.
 
 ## Browser
 
@@ -196,13 +226,14 @@ configured root.
 1. Project, Feature, Sprint, and ranking models.
 2. Five-state engineering derivation and tests.
 3. PR binding, webhook ingestion, and reconciliation.
-4. Browser authentication and shell.
-5. Backlog, Board, Feature detail, Approvals, and project Reports.
-6. Serial engineering execution.
-7. macOS and Linux deployment, backup, and restore.
+4. Durable Human Review notifications and OpenClaw dogfood delivery.
+5. Browser authentication and shell.
+6. Backlog, Board, Feature detail, Approvals, and project Reports.
+7. Serial engineering execution.
+8. macOS and Linux deployment, backup, and restore.
 
 ## Approval
 
 Approving this document approves the modular-monolith stack, minimal data model,
-three primary project pages, five engineering states, one-PR rule, and seven
+three primary project pages, five engineering states, one-PR rule, and eight
 implementation slices.

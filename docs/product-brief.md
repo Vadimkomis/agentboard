@@ -91,6 +91,20 @@ The owner makes two explicit decisions:
 
 New design revisions or PR commits invalidate stale approval.
 
+## Human-attention notifications
+
+When a Feature first enters Human Review for an exact PR head, AgentBoard sends
+the owner one phone notification containing the project, Feature, PR, and a link
+to the review action. Reconciliation of the same head must not produce duplicate
+notifications. A later head may produce a new notification only after it passes
+checks and validation and enters Human Review itself.
+
+AgentBoard delivers a small event to one configured notification endpoint rather
+than embedding a phone-channel provider. The first dogfood route is AgentBoard
+to OpenClaw, with OpenClaw delivering the event to the owner's phone. Delivery
+failures are retained and retried without changing the Feature's engineering
+state.
+
 ## Deployment
 
 AgentBoard runs under an unprivileged account on a macOS or Linux host. The

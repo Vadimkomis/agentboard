@@ -78,7 +78,22 @@ Status: Draft for owner approval
 31. State-changing requests require authentication, CSRF protection,
     idempotency, and the expected record version.
 
+## Human-attention notifications
+
+32. A Feature entering Human Review creates exactly one durable notification
+    delivery for its exact PR head and configured destination.
+33. The notification identifies the project, Feature, PR, exact head revision,
+    and review URL without containing repository credentials or application
+    secrets.
+34. Duplicate reconciliation for the same head does not create or send another
+    notification; a later validated head may create its own delivery.
+35. A transient delivery failure is recorded and retried without changing the
+    Feature's engineering state or losing the pending notification.
+36. In the dogfood flow, the configured endpoint delivers one phone notification
+    to the owner, and its review link opens the matching Human Review action.
+
 ## Release threshold
 
-All 31 assertions must pass, one real Feature must travel from Backlog through a
-merged PR, and the owner must approve the release candidate.
+All 36 assertions must pass, one real Feature must travel from Backlog through a
+merged PR, its Human Review transition must notify the owner's phone, and the
+owner must approve the release candidate.
