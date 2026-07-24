@@ -24,7 +24,8 @@ app = typer.Typer(
 def start(
     config: Path | None = typer.Option(
         None,
-        "--config", "-c",
+        "--config",
+        "-c",
         help="Path to config.yml (default: ~/.agentboard/config.yml)",
         exists=False,
     ),
@@ -65,6 +66,7 @@ def start(
         raise typer.Exit(1)
 
     from agentboard.tui.app import AgentBoardApp
+
     app_instance = AgentBoardApp(config=cfg)
     app_instance.run()
 
@@ -85,6 +87,7 @@ def init(
 
     if EXAMPLE_CONFIG_PATH.exists():
         import shutil
+
         shutil.copy(EXAMPLE_CONFIG_PATH, CONFIG_PATH)
         typer.echo(f"Config created at {CONFIG_PATH}")
         typer.echo("Edit it to add your GitHub token (optional) and set your preferred provider.")
@@ -112,6 +115,7 @@ def init(
 def version() -> None:
     """Print AgentBoard version."""
     from agentboard import __version__
+
     typer.echo(f"agentboard {__version__}")
 
 
@@ -129,7 +133,9 @@ def agents(
     typer.echo(f"{'Name':<15} {'Provider':<10} {'Model':<30} Description")
     typer.echo("-" * 80)
     for name, agent in sorted(registry.items()):
-        typer.echo(f"{name:<15} {agent.preferred_provider:<10} {agent.model:<30} {agent.description[:40]}")
+        typer.echo(
+            f"{name:<15} {agent.preferred_provider:<10} {agent.model:<30} {agent.description[:40]}"
+        )
 
 
 if __name__ == "__main__":

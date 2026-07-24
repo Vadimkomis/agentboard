@@ -68,6 +68,7 @@ class AgentBoardApp(App):
 
         # Push board screen
         from agentboard.tui.screens.board import BoardScreen
+
         await self.push_screen(BoardScreen())
 
     def _build_llm_client(self) -> object:
@@ -76,6 +77,7 @@ class AgentBoardApp(App):
         if provider == "claude":
             try:
                 from agentboard.llm.claude_cli import ClaudeCLIClient
+
                 return ClaudeCLIClient(self._config.claude_cli_path)
             except RuntimeError:
                 pass
@@ -83,6 +85,7 @@ class AgentBoardApp(App):
         # Fallback: try codex regardless of provider setting
         try:
             from agentboard.llm.codex_cli import CodexCLIClient
+
             return CodexCLIClient(self._config.codex_cli_path)
         except RuntimeError:
             pass
@@ -95,6 +98,7 @@ class AgentBoardApp(App):
     def _on_story_status_changed(self, story_id: int, status: object) -> None:
         """Called by orchestrator when a story changes status."""
         from agentboard.core.models import StoryStatus
+
         assert isinstance(status, StoryStatus)
 
         if status == StoryStatus.testing:
@@ -106,6 +110,7 @@ class AgentBoardApp(App):
 
         # Refresh board if visible
         from agentboard.tui.screens.board import BoardScreen
+
         current = self.screen
         if isinstance(current, BoardScreen):
             asyncio.create_task(current.refresh_board())
@@ -117,11 +122,13 @@ class AgentBoardApp(App):
     def _on_heartbeat_alert(self, message: str) -> None:
         """Show heartbeat alert in TUI."""
         from datetime import datetime
+
         self.notify(message, title="AgentBoard Alert", timeout=30, severity="warning")
 
         # Update heartbeat bar
         try:
             from agentboard.tui.widgets.heartbeat_bar import HeartbeatBar
+
             bar = self.query_one(HeartbeatBar)
             bar.update_status(datetime.now(UTC), message)
         except Exception:
@@ -129,12 +136,14 @@ class AgentBoardApp(App):
 
     def trigger_heartbeat(self) -> None:
         """Force an immediate heartbeat check."""
+
         async def _do_check() -> None:
             if self._heartbeat is None:
                 return
             result = await self._heartbeat.check_now()  # type: ignore[union-attr]
             try:
                 from agentboard.tui.widgets.heartbeat_bar import HeartbeatBar
+
                 bar = self.query_one(HeartbeatBar)
                 bar.update_status(datetime.now(UTC), result)
             except Exception:
@@ -150,6 +159,7 @@ class AgentBoardApp(App):
         """Re-fetch story from DB (used by detail screen)."""
         from agentboard.core.db import get_session
         from agentboard.core.models import Story
+
         assert isinstance(story, Story)
         async with get_session() as session:
             await session.refresh(story, ["tickets", "pm_messages", "growth_messages"])

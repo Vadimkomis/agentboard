@@ -58,11 +58,13 @@ class Orchestrator:
         Called when user clicks Finalize (PM finalize).
         """
         from agentboard.agents.pm_agent import DecomposedStory
+
         assert isinstance(decomposed, DecomposedStory)
 
         # Create engineering tickets atomically
         created_tickets: list[Ticket] = []
         for idx, ticket_data in enumerate(decomposed.engineering_tickets):
+            dependencies = ticket_data.get("depends_on") or [None]
             ticket = Ticket(
                 story_id=story.id,
                 ticket_index=idx,
@@ -77,7 +79,7 @@ class Orchestrator:
                 branch_name=ticket_data.get("branch_name"),
                 context_files=json.dumps(ticket_data.get("context_files", [])),
                 reasoning=ticket_data.get("reasoning"),
-                depends_on_index=ticket_data.get("depends_on", [None])[0],
+                depends_on_index=dependencies[0],
                 status=TicketStatus.pending,
             )
             session.add(ticket)
@@ -129,7 +131,8 @@ class Orchestrator:
         while pending:
             # Find tickets that are ready to run (dependencies met)
             ready = [
-                idx for idx in pending
+                idx
+                for idx in pending
                 if ticket_map[idx].depends_on_index is None
                 or ticket_map[idx].depends_on_index in completed
             ]
@@ -137,8 +140,7 @@ class Orchestrator:
             if not ready:
                 # All remaining tickets are blocked by failed deps
                 logger.warning(
-                    "Story %d: %d tickets blocked by failed dependencies",
-                    story_id, len(pending)
+                    "Story %d: %d tickets blocked by failed dependencies", story_id, len(pending)
                 )
                 break
 
