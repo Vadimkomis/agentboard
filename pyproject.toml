@@ -87,12 +87,13 @@ ignore = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
-addopts = "--cov=agentboard --cov-report=term-missing"
+addopts = "--cov=agentboard --cov-report=term-missing --cov-fail-under=100"
 
 [tool.coverage.run]
 omit = [
-    # Terminal UI is exercised through Textual integration tests.
+    # Terminal UI is an integration boundary, not part of unit coverage.
     "agentboard/tui/*",
     # Provider clients require installed external CLIs.
     "agentboard/llm/claude_cli.py",

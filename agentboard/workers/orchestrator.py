@@ -64,6 +64,7 @@ class Orchestrator:
         # Create engineering tickets atomically
         created_tickets: list[Ticket] = []
         for idx, ticket_data in enumerate(decomposed.engineering_tickets):
+            dependencies = ticket_data.get("depends_on") or [None]
             ticket = Ticket(
                 story_id=story.id,
                 ticket_index=idx,
@@ -78,7 +79,7 @@ class Orchestrator:
                 branch_name=ticket_data.get("branch_name"),
                 context_files=json.dumps(ticket_data.get("context_files", [])),
                 reasoning=ticket_data.get("reasoning"),
-                depends_on_index=ticket_data.get("depends_on", [None])[0],
+                depends_on_index=dependencies[0],
                 status=TicketStatus.pending,
             )
             session.add(ticket)

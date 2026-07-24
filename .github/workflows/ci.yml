@@ -35,7 +35,7 @@ jobs:
         run: ruff format --check agentboard tests
 
       - name: Run tests
-        run: pytest --cov=agentboard --cov-report=xml --cov-fail-under=60
+        run: pytest --cov=agentboard --cov-report=xml --cov-fail-under=100
 
       - name: Upload coverage
         if: matrix.python-version == '3.12'
