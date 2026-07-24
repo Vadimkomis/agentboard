@@ -8,9 +8,9 @@ AgentBoard v0 is a modular monolith. It stays that way until measured behavior
 proves otherwise.
 
 ```text
-Mac browser
-    │ private connection
-Linux AgentBoard
+Browser
+    │ local or private connection
+AgentBoard host (macOS or Linux)
     ├── FastAPI + server-rendered HTML
     ├── domain rules
     ├── GitHub synchronization
@@ -28,7 +28,7 @@ required.
 - SQLAlchemy 2 async
 - SQLite in WAL mode
 - Alembic
-- systemd
+- Native process supervision (`launchd` on macOS or `systemd` on Linux)
 
 The existing Python repository remains the base. Rust is deferred unless a
 measured security or performance need justifies a separate worker component.
@@ -180,20 +180,16 @@ button and stored in the browser.
 
 - Bind to loopback by default.
 - Access through SSH or a private network.
-- Run as a dedicated unprivileged Linux user.
+- Run under a dedicated unprivileged operating-system account where practical.
 - Use authenticated sessions, CSRF protection, idempotency keys, and optimistic
   record versions.
 - Keep secrets outside SQLite and project artifacts.
 - Resolve all filesystem paths beneath the configured project root.
 
-```text
-/srv/agentboard/app
-/var/lib/agentboard/agentboard.db
-/var/lib/agentboard/repos
-/var/lib/agentboard/worktrees
-/etc/agentboard/config.yml
-/etc/agentboard/secrets.env
-```
+Keep the application, data, repositories, worktrees, configuration, and secrets
+under explicit platform-appropriate directories. Defaults follow macOS and Linux
+filesystem conventions; every resolved project path must remain beneath its
+configured root.
 
 ## Serial implementation plan
 
@@ -203,7 +199,7 @@ button and stored in the browser.
 4. Browser authentication and shell.
 5. Backlog, Board, Feature detail, Approvals, and project Reports.
 6. Serial engineering execution.
-7. Linux deployment, backup, and restore.
+7. macOS and Linux deployment, backup, and restore.
 
 ## Approval
 

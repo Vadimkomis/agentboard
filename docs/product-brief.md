@@ -4,14 +4,15 @@ Status: Draft for owner approval
 
 ## Purpose
 
-AgentBoard is a small, Linux-hosted browser application for moving software
-Features from a project backlog through a GitHub pull request.
+AgentBoard is a small, self-hosted browser application for moving software
+Features from a project backlog through a GitHub pull request. It runs on macOS
+or Linux.
 
 ## Core principle: simplicity
 
 Prefer the smallest design that makes the workflow reliable and visible.
 
-- One Linux service
+- One local application service
 - One SQLite database
 - One browser interface
 - One backlog per project
@@ -92,14 +93,13 @@ New design revisions or PR commits invalidate stale approval.
 
 ## Deployment
 
-AgentBoard runs on the Linux machine under an unprivileged account. The Mac
-accesses it through a private network or SSH tunnel.
+AgentBoard runs under an unprivileged account on a macOS or Linux host. The
+browser may run on that same machine or connect through a private network or SSH
+tunnel.
 
-SQLite on Linux is authoritative for board state:
-
-```text
-/var/lib/agentboard/agentboard.db
-```
+SQLite in the configured host data directory is authoritative for board state.
+The default data directory follows the host platform's conventions and can be
+overridden explicitly.
 
 GitHub is authoritative for repositories and PR facts.
 
