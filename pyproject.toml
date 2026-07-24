@@ -44,7 +44,7 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.0.0",
-    "ruff>=0.3.0",
+    "ruff==0.16.0",
     "mypy>=1.8.0",
 ]
 
@@ -89,6 +89,18 @@ ignore = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 addopts = "--cov=agentboard --cov-report=term-missing"
+
+[tool.coverage.run]
+omit = [
+    # Terminal UI is exercised through Textual integration tests.
+    "agentboard/tui/*",
+    # Provider clients require installed external CLIs.
+    "agentboard/llm/claude_cli.py",
+    "agentboard/llm/codex_cli.py",
+    # Thin process and CLI boundaries are covered by integration tests.
+    "agentboard/cli.py",
+    "agentboard/agents/engineering_runner.py",
+]
 
 [tool.mypy]
 python_version = "3.11"

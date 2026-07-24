@@ -92,20 +92,24 @@ class StoryCard(Widget):
         if story.status == StoryStatus.engineering and story.ticket_total > 0:
             done = story.ticket_done_count
             total = story.ticket_total
-            yield Static(f"{'█' * done}{'░' * (total - done)} {done}/{total}", classes="card-badges")
+            yield Static(
+                f"{'█' * done}{'░' * (total - done)} {done}/{total}", classes="card-badges"
+            )
 
         # Agent type badges
         agent_types = {
-            t.agent_type.value
-            for t in story.tickets
-            if t.agent_type.value != "marketing"
+            t.agent_type.value for t in story.tickets if t.agent_type.value != "marketing"
         }
         if agent_types:
             badges = " ".join(_AGENT_BADGE_MAP.get(a, a.upper()) for a in sorted(agent_types))
             yield Static(badges, classes="card-badges")
 
         # GTM warning
-        if not story.gtm_complete and story.status in (StoryStatus.drafting, StoryStatus.refining, StoryStatus.engineering):
+        if not story.gtm_complete and story.status in (
+            StoryStatus.drafting,
+            StoryStatus.refining,
+            StoryStatus.engineering,
+        ):
             yield Static("[GTM ⚠]", classes="card-warning")
 
         # LAUNCH.md status
@@ -116,11 +120,17 @@ class StoryCard(Widget):
 
         # Bug count in TESTING
         if story.status == StoryStatus.testing and story.open_bug_count > 0:
-            yield Static(f"🐛 {story.open_bug_count} bug{'s' if story.open_bug_count > 1 else ''}", classes="card-bug")
+            yield Static(
+                f"🐛 {story.open_bug_count} bug{'s' if story.open_bug_count > 1 else ''}",
+                classes="card-bug",
+            )
 
         # Stale ticket warning
         if story.stale_ticket_count > 0:
-            yield Static(f"⚠ {story.stale_ticket_count} stale ticket{'s' if story.stale_ticket_count > 1 else ''}", classes="card-warning")
+            yield Static(
+                f"⚠ {story.stale_ticket_count} stale ticket{'s' if story.stale_ticket_count > 1 else ''}",
+                classes="card-warning",
+            )
 
     def update_story(self, story: Story) -> None:
         """Re-render the card with updated story data."""

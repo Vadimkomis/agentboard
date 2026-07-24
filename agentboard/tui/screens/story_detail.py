@@ -168,9 +168,8 @@ class StoryDetailScreen(Screen):
     def compose(self) -> ComposeResult:
         yield Header()
 
-        editable = (
-            self._is_new
-            or (self._story and self._story.status in (StoryStatus.drafting, StoryStatus.refining))
+        editable = self._is_new or (
+            self._story and self._story.status in (StoryStatus.drafting, StoryStatus.refining)
         )
 
         with Horizontal(classes="main-row"):
@@ -193,13 +192,16 @@ class StoryDetailScreen(Screen):
 
                 # Show ticket grid if story is past DRAFTING
                 if self._story and self._story.status not in (
-                    StoryStatus.drafting, StoryStatus.refining
+                    StoryStatus.drafting,
+                    StoryStatus.refining,
                 ):
                     yield TicketGrid(id="ticket-grid")
 
         with Horizontal(classes="action-bar"):
             yield Button("[f] Finalize PM → tickets", id="btn-finalize-pm", variant="primary")
-            yield Button("[g] Finalize Growth → LAUNCH.md", id="btn-finalize-growth", variant="success")
+            yield Button(
+                "[g] Finalize Growth → LAUNCH.md", id="btn-finalize-growth", variant="success"
+            )
             if self._story and self._story.status == StoryStatus.testing:
                 yield Button("[d] Mark Done", id="btn-mark-done", variant="warning")
 
@@ -228,7 +230,7 @@ class StoryDetailScreen(Screen):
         if self._is_new and self._pm_chat:
             self._pm_chat.add_message(
                 "assistant",
-                "Let's build something great! Tell me about your story — what problem are you solving?"
+                "Let's build something great! Tell me about your story — what problem are you solving?",
             )
 
     async def _load_history(self) -> None:
@@ -237,12 +239,17 @@ class StoryDetailScreen(Screen):
             return
         async with get_session() as session:
             from sqlalchemy import select
-            pm_stmt = select(StoryMessage).where(
-                StoryMessage.story_id == self._story.id
-            ).order_by(StoryMessage.id)
-            growth_stmt = select(GrowthMessage).where(
-                GrowthMessage.story_id == self._story.id
-            ).order_by(GrowthMessage.id)
+
+            pm_stmt = (
+                select(StoryMessage)
+                .where(StoryMessage.story_id == self._story.id)
+                .order_by(StoryMessage.id)
+            )
+            growth_stmt = (
+                select(GrowthMessage)
+                .where(GrowthMessage.story_id == self._story.id)
+                .order_by(GrowthMessage.id)
+            )
 
             pm_result = await session.execute(pm_stmt)
             growth_result = await session.execute(growth_stmt)
@@ -379,18 +386,24 @@ class StoryDetailScreen(Screen):
     async def _load_pm_history(self, story_id: int) -> list[StoryMessage]:
         async with get_session() as session:
             from sqlalchemy import select
-            stmt = select(StoryMessage).where(
-                StoryMessage.story_id == story_id
-            ).order_by(StoryMessage.id)
+
+            stmt = (
+                select(StoryMessage)
+                .where(StoryMessage.story_id == story_id)
+                .order_by(StoryMessage.id)
+            )
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
     async def _load_growth_history(self, story_id: int) -> list[GrowthMessage]:
         async with get_session() as session:
             from sqlalchemy import select
-            stmt = select(GrowthMessage).where(
-                GrowthMessage.story_id == story_id
-            ).order_by(GrowthMessage.id)
+
+            stmt = (
+                select(GrowthMessage)
+                .where(GrowthMessage.story_id == story_id)
+                .order_by(GrowthMessage.id)
+            )
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
@@ -432,7 +445,7 @@ class StoryDetailScreen(Screen):
 
             self.notify(
                 f"Created {len(decomposed.engineering_tickets)} tickets — engineering started!",
-                title="Story finalized"
+                title="Story finalized",
             )
             self.action_go_back()
 
@@ -463,7 +476,9 @@ class StoryDetailScreen(Screen):
                     db_story.launch_md_finalized = True
                     self._story = db_story
 
-            self.notify("LAUNCH.md generated! (Commit it via the engineering runner)", title="Growth Done")
+            self.notify(
+                "LAUNCH.md generated! (Commit it via the engineering runner)", title="Growth Done"
+            )
 
         except Exception as e:
             self.notify(f"Growth finalize failed: {e}", severity="error")

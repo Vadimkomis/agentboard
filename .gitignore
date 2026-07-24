@@ -35,6 +35,8 @@ docker/data/
 .ruff_cache/
 .pytest_cache/
 htmlcov/
+.coverage
+coverage.xml
 
 # Logs
 *.log

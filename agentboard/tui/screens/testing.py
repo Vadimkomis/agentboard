@@ -112,7 +112,7 @@ class TestingScreen(Screen):
         self._bug_chat.add_message(
             "assistant",
             f"Testing '{self._story.title}'. Found a bug? Describe it here — "
-            "I'll create a fix ticket and route it to the right engineer."
+            "I'll create a fix ticket and route it to the right engineer.",
         )
 
     def _on_bug_report(self, text: str) -> None:
@@ -162,7 +162,7 @@ class TestingScreen(Screen):
             self._bug_chat.add_message(
                 "assistant",
                 f"Created bug fix ticket: **{ticket_data.get('title', 'Fix ticket')}**\n\n"
-                f"Story is back in ENGINEERING. I'll notify you when the fix is ready for re-testing."
+                f"Story is back in ENGINEERING. I'll notify you when the fix is ready for re-testing.",
             )
 
             # Refresh ticket grid

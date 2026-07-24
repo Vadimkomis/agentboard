@@ -92,6 +92,7 @@ class HeartbeatMonitor:
         """Load current board state from DB for the heartbeat prompt."""
         async with get_session() as session:
             from sqlalchemy import select
+
             stmt = select(Story)
             result = await session.execute(stmt)
             stories = result.scalars().all()
@@ -111,8 +112,7 @@ class HeartbeatMonitor:
                     last_activity = last_activity.replace(tzinfo=UTC)
 
                 hours_inactive = (
-                    (now - last_activity).total_seconds() / 3600
-                    if last_activity else 999
+                    (now - last_activity).total_seconds() / 3600 if last_activity else 999
                 )
 
                 stuck_tickets = [
@@ -122,23 +122,23 @@ class HeartbeatMonitor:
                 ]
 
                 stale_tickets = [
-                    {"id": t.id, "title": t.title}
-                    for t in story.tickets
-                    if t.is_stale
+                    {"id": t.id, "title": t.title} for t in story.tickets if t.is_stale
                 ]
 
-                state["stories"].append({
-                    "id": story.id,
-                    "title": story.title,
-                    "status": story.status.value,
-                    "hours_inactive": round(hours_inactive, 1),
-                    "gtm_complete": story.gtm_complete,
-                    "launch_md_finalized": story.launch_md_finalized,
-                    "ticket_total": story.ticket_total,
-                    "ticket_done": story.ticket_done_count,
-                    "stuck_tickets": stuck_tickets,
-                    "stale_tickets": stale_tickets,
-                })
+                state["stories"].append(
+                    {
+                        "id": story.id,
+                        "title": story.title,
+                        "status": story.status.value,
+                        "hours_inactive": round(hours_inactive, 1),
+                        "gtm_complete": story.gtm_complete,
+                        "launch_md_finalized": story.launch_md_finalized,
+                        "ticket_total": story.ticket_total,
+                        "ticket_done": story.ticket_done_count,
+                        "stuck_tickets": stuck_tickets,
+                        "stale_tickets": stale_tickets,
+                    }
+                )
 
             return state
 
@@ -148,8 +148,10 @@ class HeartbeatMonitor:
         try:
             proc = await asyncio.create_subprocess_exec(
                 self.claude_cli_path,
-                "-p", prompt,
-                "--output-format", "text",
+                "-p",
+                prompt,
+                "--output-format",
+                "text",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -201,14 +203,18 @@ async def _desktop_notify(title: str, message: str) -> None:
             # macOS osascript
             script = f'display notification "{message}" with title "{title}"'
             proc = await asyncio.create_subprocess_exec(
-                "osascript", "-e", script,
+                "osascript",
+                "-e",
+                script,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
             await asyncio.wait_for(proc.wait(), timeout=5)
         elif system == "Linux":
             proc = await asyncio.create_subprocess_exec(
-                "notify-send", title, message,
+                "notify-send",
+                title,
+                message,
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )

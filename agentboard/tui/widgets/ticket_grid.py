@@ -55,11 +55,7 @@ class TicketGrid(Widget):
             agent = ticket.agent_type.value
             runtime = ticket.runtime.value
             priority = ticket.priority
-            dep = (
-                f"→ #{ticket.depends_on_index}"
-                if ticket.depends_on_index is not None
-                else ""
-            )
+            dep = f"→ #{ticket.depends_on_index}" if ticket.depends_on_index is not None else ""
             pr = "✓" if ticket.pr_url else ""
 
             table.add_row(icon, title, agent, runtime, priority, dep, pr, key=str(ticket.id))

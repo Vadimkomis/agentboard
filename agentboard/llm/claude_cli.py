@@ -52,8 +52,10 @@ class ClaudeCLIClient:
         prompt = self._build_prompt(system, messages)
         proc = await asyncio.create_subprocess_exec(
             self.cli_path,
-            "-p", prompt,
-            "--output-format", "text",
+            "-p",
+            prompt,
+            "--output-format",
+            "text",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -75,8 +77,10 @@ class ClaudeCLIClient:
         prompt = self._build_prompt(system, messages)
         proc = await asyncio.create_subprocess_exec(
             self.cli_path,
-            "-p", prompt,
-            "--output-format", "stream-json",
+            "-p",
+            prompt,
+            "--output-format",
+            "stream-json",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -128,9 +132,11 @@ class ClaudeCLIClient:
         """
         cmd = [
             self.cli_path,
-            "-p", f"{system}\n\n{task}",
+            "-p",
+            f"{system}\n\n{task}",
             "--dangerously-skip-permissions",
-            "--output-format", "text",
+            "--output-format",
+            "text",
         ]
         if allowed_tools:
             cmd.extend(["--allowedTools", ",".join(allowed_tools)])

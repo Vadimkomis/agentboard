@@ -115,16 +115,18 @@ class GrowthAgent:
 
         if not history:
             # First message — seed with story context
-            messages.append({
-                "role": "user",
-                "content": (
-                    f"Story title: {story.title}\n\n"
-                    f"Problem: {story.prd_problem or '(not defined yet)'}\n\n"
-                    f"Solution: {story.prd_solution or '(not defined yet)'}\n\n"
-                    f"GTM so far: {story.prd_gtm or '(not defined yet)'}\n\n"
-                    f"User message: {user_message}"
-                ),
-            })
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"Story title: {story.title}\n\n"
+                        f"Problem: {story.prd_problem or '(not defined yet)'}\n\n"
+                        f"Solution: {story.prd_solution or '(not defined yet)'}\n\n"
+                        f"GTM so far: {story.prd_gtm or '(not defined yet)'}\n\n"
+                        f"User message: {user_message}"
+                    ),
+                }
+            )
         else:
             for msg in history:
                 messages.append(msg.to_dict())
@@ -147,8 +149,7 @@ class GrowthAgent:
         """
         # Summarize the conversation into context
         conversation_text = "\n".join(
-            f"{msg.role.value.upper()}: {msg.content}"
-            for msg in conversation_history
+            f"{msg.role.value.upper()}: {msg.content}" for msg in conversation_history
         )
 
         system = LAUNCH_MD_GENERATION_SYSTEM_PROMPT.replace("{story_title}", story.title)

@@ -90,6 +90,7 @@ class BoardScreen(Screen):
 
     def compose(self) -> ComposeResult:
         from agentboard.tui.widgets.heartbeat_bar import HeartbeatBar
+
         yield Header()
         with Horizontal(classes="board-area"):
             for label, statuses in zip(_COLUMN_LABELS, _COLUMNS, strict=True):
@@ -104,6 +105,7 @@ class BoardScreen(Screen):
         """Load stories from DB and populate columns."""
         async with get_session() as session:
             from sqlalchemy import select
+
             stmt = select(Story)
             result = await session.execute(stmt)
             stories = result.scalars().all()
@@ -127,6 +129,7 @@ class BoardScreen(Screen):
     def action_new_story(self) -> None:
         """Open new story creation dialog."""
         from agentboard.tui.screens.story_detail import StoryDetailScreen
+
         self.app.push_screen(StoryDetailScreen(story=None))
 
     def action_open_story(self) -> None:
@@ -134,6 +137,7 @@ class BoardScreen(Screen):
         focused = self.focused
         if isinstance(focused, StoryCard):
             from agentboard.tui.screens.story_detail import StoryDetailScreen
+
             self.app.push_screen(StoryDetailScreen(story=focused._story))
 
     def action_force_heartbeat(self) -> None:
