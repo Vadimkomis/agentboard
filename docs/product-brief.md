@@ -1,6 +1,6 @@
 # AgentBoard v0 Product Brief
 
-Status: Draft for owner approval
+Status: Approved
 
 ## Purpose
 
@@ -73,6 +73,12 @@ approval, and mergeability.
 The board is not freely draggable. New commits or failed checks can move a card
 backward. A merged PR moves the Feature to Done.
 
+Validation is an independent, evidence-backed run against one immutable PR head.
+The implementation worker cannot validate its own candidate. A passing result
+advances that exact head to Human Review; a candidate failure returns the Feature
+to Working; an infrastructure or protocol error keeps it in In Review with an
+explicit attention state. Any new commit makes the earlier result stale.
+
 While the sprint remains active, Done Features stay visible in a compact
 completed section on the sprint and board. They do not occupy an active-work
 column or count toward work in progress.
@@ -104,6 +110,10 @@ than embedding a phone-channel provider. The first dogfood route is AgentBoard
 to OpenClaw, with OpenClaw delivering the event to the owner's phone. Delivery
 failures are retained and retried without changing the Feature's engineering
 state.
+
+Phone notifications are enabled only when AgentBoard has a configured review
+base URL that the phone can reach through a trusted private connection. The
+notification must never advertise a localhost URL to another device.
 
 ## Deployment
 

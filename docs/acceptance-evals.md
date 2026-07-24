@@ -1,6 +1,6 @@
 # AgentBoard v0 Acceptance Evals
 
-Status: Draft for owner approval
+Status: Approved
 
 ## Simplicity
 
@@ -49,51 +49,69 @@ Status: Draft for owner approval
 20. A merged PR moves the Feature to Done and records its merge commit and
     completion time.
 
+## Independent validation
+
+21. Every validation assignment and result is stored with its assignment digest,
+    exact subject revision, validator identity and session, and all relevant
+    implementation-worker identities and sessions.
+22. AgentBoard rejects self-validation, reuse of an implementation session,
+    malformed results, assignment-digest mismatch, insufficient evidence, and
+    any result for a revision other than the active PR head.
+23. Validation pass advances the exact head to Human Review; candidate failure
+    returns the Feature to Working; infrastructure or protocol error leaves it
+    in In Review with explicit attention required.
+24. A new PR commit makes all earlier validation results ineligible for current
+    state derivation without deleting their evidence or audit history.
+25. Repeated stable failure signatures stop automatic validation retries and
+    require owner action.
+
 ## Done and sprint closure
 
-21. While a sprint is active, Done Features remain in its compact completed
+26. While a sprint is active, Done Features remain in its compact completed
     section and are excluded from active-work columns and work-in-progress
     counts.
-22. Closing a sprint removes its Done Features from standard active-sprint and
+27. Closing a sprint removes its Done Features from standard active-sprint and
     future-backlog views.
-23. Closing a sprint preserves Done Features in project reports with sprint,
+28. Closing a sprint preserves Done Features in project reports with sprint,
     PR, merge commit, estimate, owner, and completion time.
-24. Historical reports are derived from preserved records; sprint closure never
+29. Historical reports are derived from preserved records; sprint closure never
     deletes or rewrites completed Feature history.
-25. Incomplete Features require an explicit destination before sprint closure:
+30. Incomplete Features require an explicit destination before sprint closure:
     the future backlog or a planned next sprint.
 
 ## Persistence and recovery
 
-26. Restarting AgentBoard preserves projects, backlog ranks, sprint membership,
+31. Restarting AgentBoard preserves projects, backlog ranks, sprint membership,
     Feature state, PR bindings, and approvals.
-27. SQLite transitions and their audit records commit atomically.
-28. An encrypted backup restores the database with foreign-key integrity.
+32. SQLite transitions and their audit records commit atomically.
+33. An encrypted backup restores the database with foreign-key integrity.
 
 ## Browser
 
-29. Light and dark modes are accessible and persist across sessions.
-30. Browser refresh reconstructs the page from SQLite without inventing or
+34. Light and dark modes are accessible and persist across sessions.
+35. Browser refresh reconstructs the page from SQLite without inventing or
     losing state.
-31. State-changing requests require authentication, CSRF protection,
+36. State-changing requests require authentication, CSRF protection,
     idempotency, and the expected record version.
 
 ## Human-attention notifications
 
-32. A Feature entering Human Review creates exactly one durable notification
+37. A Feature entering Human Review creates exactly one durable notification
     delivery for its exact PR head and configured destination.
-33. The notification identifies the project, Feature, PR, exact head revision,
+38. The notification identifies the project, Feature, PR, exact head revision,
     and review URL without containing repository credentials or application
     secrets.
-34. Duplicate reconciliation for the same head does not create or send another
+39. Phone notifications cannot be enabled without a configured review base URL
+    that is reachable from the phone through a trusted private connection.
+40. Duplicate reconciliation for the same head does not create or send another
     notification; a later validated head may create its own delivery.
-35. A transient delivery failure is recorded and retried without changing the
+41. A transient delivery failure is recorded and retried without changing the
     Feature's engineering state or losing the pending notification.
-36. In the dogfood flow, the configured endpoint delivers one phone notification
+42. In the dogfood flow, the configured endpoint delivers one phone notification
     to the owner, and its review link opens the matching Human Review action.
 
 ## Release threshold
 
-All 36 assertions must pass, one real Feature must travel from Backlog through a
+All 42 assertions must pass, one real Feature must travel from Backlog through a
 merged PR, its Human Review transition must notify the owner's phone, and the
 owner must approve the release candidate.
