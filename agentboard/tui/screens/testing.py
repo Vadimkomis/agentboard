@@ -112,7 +112,7 @@ class TestingScreen(Screen):
         self._bug_chat.add_message(
             "assistant",
             f"Testing '{self._story.title}'. Found a bug? Describe it here — "
-            "I'll create a fix ticket and route it to the right engineer.",
+            "I'll create a fix ticket and route it to the right agent.",
         )
 
     def _on_bug_report(self, text: str) -> None:
