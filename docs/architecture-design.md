@@ -75,7 +75,7 @@ worker. Browser handlers never mutate database models directly.
 
 `id`, `project_id`, `number`, `title`, `description`, `rank`, `planning_stage`,
 `engineering_state`, `priority`, `estimate`, `owner`, `approved_design_hash`,
-timestamps
+`completed_at`, timestamps
 
 ### Sprint
 
@@ -91,7 +91,7 @@ Only one Sprint may be active per Project.
 
 `id`, `feature_id`, `number`, `url`, `head_revision`, `draft`, `state`,
 `checks_state`, `review_state`, `mergeable_state`, `provider_updated_at`,
-`last_reconciled_at`
+`merge_commit`, `merged_at`, `last_reconciled_at`
 
 One active primary PR may belong to a Feature.
 
@@ -130,7 +130,20 @@ The engineering state is derived:
 - **In Review:** implementation finished; checks or validation running.
 - **Human Review:** checks and validation pass for the exact PR head.
 - **Ready to Merge:** exact head approved and currently mergeable.
-- **Completed:** GitHub confirms merge; hidden from the active board.
+- **Done:** GitHub confirms merge; shown in the active sprint's compact
+  completed section until the sprint closes.
+
+Done is terminal. It is not a sixth work-in-progress column.
+
+Closing a sprint:
+
+1. requires an explicit destination for every incomplete Feature;
+2. marks the Sprint completed;
+3. removes its Done Features from standard active sprint and backlog queries;
+4. preserves Feature, Sprint, PR, merge, approval, and audit records;
+5. makes those records available to completed-sprint project reports.
+
+Reports are read models over preserved SQLite records, not copied archive data.
 
 UI drag-and-drop cannot set engineering state.
 
@@ -155,6 +168,10 @@ Each selected Project has three primary pages:
 1. **Backlog** — Current Sprint followed by future ranked Features.
 2. **Board** — five engineering columns for the Current Sprint.
 3. **Approvals** — design and PR decisions waiting for the owner.
+
+The active sprint and board each include a compact Done section. Completed
+sprints and Features are available through project Reports and are excluded
+from standard active views.
 
 A Feature opens one detail view. Light/dark mode is available from the top-right
 button and stored in the browser.
@@ -184,7 +201,7 @@ button and stored in the browser.
 2. Five-state engineering derivation and tests.
 3. PR binding, webhook ingestion, and reconciliation.
 4. Browser authentication and shell.
-5. Backlog, Board, Feature detail, and Approvals pages.
+5. Backlog, Board, Feature detail, Approvals, and project Reports.
 6. Serial engineering execution.
 7. Linux deployment, backup, and restore.
 

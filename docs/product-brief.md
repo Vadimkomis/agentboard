@@ -70,8 +70,16 @@ board derives state from the PR's head revision, checks, validation, reviews,
 approval, and mergeability.
 
 The board is not freely draggable. New commits or failed checks can move a card
-backward. A merged PR removes the Feature from the active board and completes
-it.
+backward. A merged PR moves the Feature to Done.
+
+While the sprint remains active, Done Features stay visible in a compact
+completed section on the sprint and board. They do not occupy an active-work
+column or count toward work in progress.
+
+When the sprint closes, its Done Features disappear from standard active-sprint
+and future-backlog views. They remain permanently available in completed-sprint
+project reports with their PR, merge commit, completion time, estimate, and
+sprint.
 
 ## Human approvals
 

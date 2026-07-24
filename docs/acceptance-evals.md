@@ -45,25 +45,39 @@ Status: Draft for owner approval
 18. New commits invalidate validation and human approval for the old head.
 19. Ready to Merge requires passing checks, validation, human approval, and a
     mergeable PR for the exact head revision.
-20. A merged PR removes the Feature from the active board and records the merge
-    commit.
+20. A merged PR moves the Feature to Done and records its merge commit and
+    completion time.
+
+## Done and sprint closure
+
+21. While a sprint is active, Done Features remain in its compact completed
+    section and are excluded from active-work columns and work-in-progress
+    counts.
+22. Closing a sprint removes its Done Features from standard active-sprint and
+    future-backlog views.
+23. Closing a sprint preserves Done Features in project reports with sprint,
+    PR, merge commit, estimate, owner, and completion time.
+24. Historical reports are derived from preserved records; sprint closure never
+    deletes or rewrites completed Feature history.
+25. Incomplete Features require an explicit destination before sprint closure:
+    the future backlog or a planned next sprint.
 
 ## Persistence and recovery
 
-21. Restarting AgentBoard preserves projects, backlog ranks, sprint membership,
+26. Restarting AgentBoard preserves projects, backlog ranks, sprint membership,
     Feature state, PR bindings, and approvals.
-22. SQLite transitions and their audit records commit atomically.
-23. An encrypted backup restores the database with foreign-key integrity.
+27. SQLite transitions and their audit records commit atomically.
+28. An encrypted backup restores the database with foreign-key integrity.
 
 ## Browser
 
-24. Light and dark modes are accessible and persist across sessions.
-25. Browser refresh reconstructs the page from SQLite without inventing or
+29. Light and dark modes are accessible and persist across sessions.
+30. Browser refresh reconstructs the page from SQLite without inventing or
     losing state.
-26. State-changing requests require authentication, CSRF protection,
+31. State-changing requests require authentication, CSRF protection,
     idempotency, and the expected record version.
 
 ## Release threshold
 
-All 26 assertions must pass, one real Feature must travel from Backlog through a
+All 31 assertions must pass, one real Feature must travel from Backlog through a
 merged PR, and the owner must approve the release candidate.
