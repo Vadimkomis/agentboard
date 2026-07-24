@@ -4,9 +4,9 @@ Status: Draft for owner approval
 
 ## Simplicity
 
-1. A clean installation on supported macOS and Linux hosts runs as one
-   application process with one SQLite database and no Redis, PostgreSQL, queue,
-   or frontend build service.
+1. A clean installation on either a supported macOS host or a supported Linux
+   host runs as one application process with one SQLite database and no Redis,
+   PostgreSQL, queue, or frontend build service.
 2. The browser exposes only Projects, Features, Sprints, PR state, Backlog,
    Board, and Approvals.
 3. Each project allows at most one active sprint and one active engineering
