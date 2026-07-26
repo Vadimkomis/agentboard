@@ -112,7 +112,7 @@ class ClaudeCLIClient:
 
         await proc.wait()
         if proc.returncode not in (0, None):
-            stderr_data = await proc.stderr.read() if proc.stderr else b""  # type: ignore[union-attr]
+            stderr_data = await proc.stderr.read() if proc.stderr else b""
             err = stderr_data.decode().strip()
             raise RuntimeError(f"claude CLI exited with code {proc.returncode}: {err}")
 
@@ -160,7 +160,7 @@ class ClaudeCLIClient:
         full_output = "".join(output_chunks)
 
         if proc.returncode != 0:
-            stderr_data = await proc.stderr.read() if proc.stderr else b""  # type: ignore[union-attr]
+            stderr_data = await proc.stderr.read() if proc.stderr else b""
             err = stderr_data.decode().strip()
             raise RuntimeError(f"claude agent exited with code {proc.returncode}: {err}")
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Callable
 
 from agentboard.core.models import GrowthMessage, Story
+from agentboard.llm.client import LLMClient
 
 GROWTH_REFINEMENT_SYSTEM_PROMPT = """\
 You are a growth strategist and product marketer specialized in developer tools and SaaS.
@@ -100,7 +101,7 @@ LAUNCH.md must follow this exact structure:
 class GrowthAgent:
     """Conversational growth agent — GTM refinement and LAUNCH.md generation."""
 
-    def __init__(self, llm_client: object) -> None:
+    def __init__(self, llm_client: LLMClient) -> None:
         self._client = llm_client
 
     async def refine(
@@ -132,7 +133,7 @@ class GrowthAgent:
                 messages.append(msg.to_dict())
             messages.append({"role": "user", "content": user_message})
 
-        return self._client.stream(  # type: ignore[return-value]
+        return self._client.stream(
             GROWTH_REFINEMENT_SYSTEM_PROMPT,
             messages,
             on_token,
@@ -164,7 +165,7 @@ class GrowthAgent:
             f"Growth Strategy Conversation:\n{conversation_text}"
         )
 
-        return await self._client.complete(  # type: ignore[call-arg]
+        return await self._client.complete(
             system,
             [{"role": "user", "content": user_msg}],
         )

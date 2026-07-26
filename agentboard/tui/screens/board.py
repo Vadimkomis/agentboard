@@ -66,7 +66,7 @@ class KanbanColumn(Vertical):
         return status in self._statuses
 
 
-class BoardScreen(Screen):
+class BoardScreen(Screen[None]):
     """Main Kanban board screen."""
 
     TITLE = "AgentBoard"

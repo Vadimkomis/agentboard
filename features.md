@@ -1,117 +1,419 @@
 # AgentBoard — Feature Tracker
 
-Story-driven multi-agent development TUI. Write a PRD in your terminal; AI agents handle engineering and GTM.
+This file is the single source of truth for AgentBoard features. The legacy
+Story/Ticket terminal application remains supported while the approved browser
+v0 is delivered in separate, serial feature slices.
 
-**Status key:** `planned` | `in-progress` | `done` | `deprecated`
+Status values are `planned`, `in-progress`, `completed`, and `deprecated`.
 
----
+## Legacy Story/Ticket application
 
-## Story Board (Kanban)
+```gherkin
+Feature: Legacy story board
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| 4-column Kanban (DRAFTING / ENGINEERING / TESTING / DONE) | done | Textual TUI with full keyboard navigation |
-| Story cards with progress bars and agent badges | done | Shows N/M tickets done, agent type abbreviations (BE FE QA), GTM warning, bug count |
-| Keyboard navigation | done | [n] new, [enter] open, [tab] switch chat, [f] finalize PM, [g] finalize growth, [d] done, [h] heartbeat |
+  Scenario: Four-column Kanban
+    Given the user opens the Textual terminal application
+    When the story board is displayed
+    Then stories are organized into DRAFTING, ENGINEERING, TESTING, and DONE columns with keyboard navigation
+    And the status is "completed"
 
----
+  Scenario: Story cards
+    Given a story has tickets, assigned agent types, GTM content, or reported bugs
+    When its card is displayed
+    Then the card shows ticket progress, agent badges, GTM warnings, and bug counts
+    And the status is "completed"
 
-## PRD Editing
+  Scenario: Board keyboard navigation
+    Given the user is on the story board
+    When the user invokes the documented new, open, chat, finalize, done, or heartbeat key
+    Then the matching board action is performed
+    And the status is "completed"
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| 5-section PRD editor (Problem / Solution / Scope / Acceptance / GTM) | done | Editable while DRAFTING/REFINING; read-only after finalize |
-| GTM mandatory gate | done | PM refuses to suggest finalization without GTM; warns on card with [GTM ⚠] badge |
+Feature: Legacy PRD editing
 
----
+  Scenario: Five-section PRD editor
+    Given a story is in DRAFTING or REFINING
+    When the user edits its Problem, Solution, Scope, Acceptance, or GTM section
+    Then the content is editable before finalization and read-only afterward
+    And the status is "completed"
 
-## PM Agent
+  Scenario: Mandatory GTM gate
+    Given a story has no GTM content
+    When PM finalization is considered
+    Then the PM withholds a finalization suggestion and the story card shows a GTM warning
+    And the status is "completed"
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| Conversational refinement | done | Streaming chat in TUI; asks 2-3 questions per response |
-| GTM prompting | done | Always asks about growth lever, channels, monetization if GTM missing |
-| Decomposition on finalize | done | Outputs structured JSON with engineering tickets + marketing ticket |
-| prd_anchor linking | done | Each ticket tagged with the PRD section it was sliced from |
-| PRD diff analysis | done | Detects changed sections, marks affected tickets as stale |
-| Bug triage | done | Creates focused bug-fix tickets from user bug reports |
+Feature: Legacy PM agent
 
----
+  Scenario: Conversational PRD refinement
+    Given the user discusses a draft story with the PM agent
+    When the agent streams a response
+    Then it asks focused follow-up questions to refine the PRD
+    And the status is "completed"
 
-## Growth Agent
+  Scenario: GTM prompting
+    Given a draft story is missing GTM details
+    When the PM agent refines the story
+    Then it asks about growth levers, channels, and monetization
+    And the status is "completed"
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| Parallel conversational agent | done | Runs alongside PM chat from story creation; tab-switchable |
-| GTM questions | done | Covers ICP, discovery, growth lever, pricing, launch sequence |
-| Independent finalize | done | [g] generates LAUNCH.md independently from PM finalize |
-| LAUNCH.md generation | done | Positioning, audience, channels, launch copy, pricing, 30-day sequence |
+  Scenario: Ticket decomposition on finalization
+    Given the user finalizes a refined story
+    When the PM agent decomposes it
+    Then it produces structured engineering tickets and a marketing ticket
+    And the status is "completed"
 
----
+  Scenario: PRD anchor linking
+    Given a ticket was decomposed from a story
+    When the ticket is persisted
+    Then it records the PRD section from which it was derived
+    And the status is "completed"
 
-## Engineering Execution
+  Scenario: PRD drift detection
+    Given a finalized PRD section changes
+    When the PM agent analyzes the change
+    Then tickets anchored to affected sections are marked stale
+    And the status is "completed"
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| Dependency-aware orchestration | done | asyncio — independent tickets start in parallel; dependent tickets wait |
-| Claude CLI runner | done | Subprocess claude --dangerously-skip-permissions in workspace dir |
-| Codex CLI runner | done | Subprocess codex --full-auto in workspace dir |
-| Workspace isolation | done | Fresh git clone per execution in /tmp/agentboard/workspaces/{id}/ |
-| Automatic commit + push | done | Runner commits changes and pushes branch after agent completes |
-| GitHub PR creation | done | Uses gh CLI if github_token is configured |
-| Agent type routing | done | PM assigns backend/frontend/mobile/devops/qa/fullstack/docs/marketing |
+  Scenario: Bug triage
+    Given the user reports a bug for a story
+    When the PM agent triages the report
+    Then it creates a focused bug-fix ticket
+    And the status is "completed"
 
----
+Feature: Legacy growth agent
 
-## Testing Loop
+  Scenario: Parallel growth conversation
+    Given a story exists
+    When the user switches to its growth conversation
+    Then an independent growth agent is available alongside the PM conversation
+    And the status is "completed"
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| Auto-transition to TESTING | done | Story moves to TESTING when all tickets are terminal |
-| TUI notification on ready for testing | done | Textual notify() + desktop notification (macOS/Linux) |
-| Bug report chat panel | done | PM agent creates bug-fix ticket from user description |
-| Story flip back to ENGINEERING | done | Story returns to ENGINEERING when bug ticket is created |
-| Mark done | done | [d] transitions story to DONE |
+  Scenario: GTM discovery questions
+    Given the user discusses launch planning with the growth agent
+    When the agent refines the plan
+    Then it covers the ideal customer, discovery, growth lever, pricing, and launch sequence
+    And the status is "completed"
 
----
+  Scenario: Independent growth finalization
+    Given the growth plan is ready
+    When the user finalizes it
+    Then growth finalization remains independent of PM finalization
+    And the status is "completed"
 
-## Heartbeat
+  Scenario: Launch document generation
+    Given the growth plan is finalized
+    When the growth artifact is generated
+    Then LAUNCH.md contains positioning, audience, channels, copy, pricing, and a 30-day sequence
+    And the status is "completed"
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| 30-minute asyncio loop | done | asyncio.sleep(1800), no external scheduler |
-| Board state checks | done | Empty pipeline, stale drafts (>24h), stuck executions (>3h), missing GTM, stale tickets |
-| LLM-powered alerts | done | Claude CLI generates 1-2 sentence alerts; local fallback if CLI unavailable |
-| Status bar display | done | Footer shows "♥ 2min ago OK" or alert text |
-| Desktop notifications | done | macOS osascript + Linux notify-send |
-| Force heartbeat | done | [h] triggers immediate check |
+Feature: Legacy engineering execution
 
----
+  Scenario: Dependency-aware orchestration
+    Given tickets include dependency relationships
+    When engineering execution runs
+    Then independent tickets may run concurrently and dependent tickets wait
+    And the status is "completed"
 
-## Data Model
+  Scenario: Claude CLI execution
+    Given a ticket is assigned to the Claude runtime
+    When its agent starts
+    Then the legacy runner executes the Claude CLI in the isolated workspace
+    And the status is "completed"
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| Story with 5 PRD sections | done | prd_problem/solution/scope/acceptance/gtm columns |
-| StoryMessage (PM chat history) | done | Full conversation persisted; replayed on each CLI call |
-| GrowthMessage (Growth chat history) | done | Independent conversation for growth agent |
-| Ticket with prd_anchor | done | Links ticket to PRD section; is_stale flag for drift detection |
-| Execution + ExecutionLog | done | Per-agent-run records with stdout/stderr streaming |
-| SQLite via SQLAlchemy async | done | aiosqlite + asyncio, zero config, zero hosting cost |
+  Scenario: Codex CLI execution
+    Given a ticket is assigned to the Codex runtime
+    When its agent starts
+    Then the legacy runner executes the Codex CLI in the isolated workspace
+    And the status is "completed"
 
----
+  Scenario: Per-execution workspace isolation
+    Given an agent execution starts
+    When its source workspace is prepared
+    Then it receives a fresh Git clone under the configured temporary workspace root
+    And the status is "completed"
 
-## Infrastructure & Distribution
+  Scenario: Automatic commit and push
+    Given a legacy agent completes its implementation
+    When the runner finalizes the execution
+    Then it commits the changes and pushes the execution branch
+    And the status is "completed"
 
-| Feature | Status | Details |
-|---------|--------|---------|
-| Local SQLite (no hosted DB) | done | ~/.agentboard/agentboard.db |
-| CLI subprocess (no API keys) | done | Uses claude/codex CLI with user's existing subscription |
-| $0 operating cost | done | Only API costs for actual agent work via CLI |
-| PyPI package | done | pipx install agentboard / pip install agentboard |
-| MIT license | done | No restrictions on commercial use |
-| Agent YAML configs (bundled defaults) | done | backend, frontend, mobile, devops, qa, fullstack, docs, growth, marketing |
-| ai-playbook override path | done | agent_config_path in config for custom agent YAMLs |
-| GitHub Actions CI | done | ruff + pytest on Python 3.11/3.12/3.13 |
-| GitHub Actions release | done | PyPI publish + GitHub release on tag push |
-| No vendor lock-in | done | Works with claude-only or codex-only; GitHub integration optional |
+  Scenario: Optional GitHub pull-request creation
+    Given the legacy application has GitHub credentials
+    When an engineering execution pushes its branch
+    Then the runner can create a pull request with the GitHub CLI
+    And the status is "completed"
+
+  Scenario: Agent-type routing
+    Given the PM decomposes engineering work
+    When it assigns an agent type
+    Then it can route to backend, frontend, mobile, devops, QA, fullstack, docs, or marketing
+    And the status is "completed"
+
+Feature: Legacy testing loop
+
+  Scenario: Automatic testing transition
+    Given every ticket for a story is terminal
+    When story progress is reconciled
+    Then the story moves to TESTING
+    And the status is "completed"
+
+  Scenario: Ready-for-testing notification
+    Given a story enters TESTING
+    When the terminal UI observes the transition
+    Then it shows an in-app notification and a supported desktop notification
+    And the status is "completed"
+
+  Scenario: Bug-report conversation
+    Given a story is in the testing loop
+    When the user describes a bug in its chat panel
+    Then the PM agent creates a bug-fix ticket
+    And the status is "completed"
+
+  Scenario: Return to engineering after a bug
+    Given a bug-fix ticket is added to a story in TESTING
+    When the story state is reconciled
+    Then the story returns to ENGINEERING
+    And the status is "completed"
+
+  Scenario: Mark story done
+    Given the user accepts a tested story
+    When the user invokes the done action
+    Then the story moves to DONE
+    And the status is "completed"
+
+Feature: Legacy heartbeat
+
+  Scenario: Periodic heartbeat
+    Given the terminal application is running
+    When thirty minutes elapse between checks
+    Then its asynchronous heartbeat evaluates board health
+    And the status is "completed"
+
+  Scenario: Board health checks
+    Given the heartbeat evaluates the board
+    When it finds an empty pipeline, stale draft, stuck execution, missing GTM, or stale ticket
+    Then it reports the matching board-health condition
+    And the status is "completed"
+
+  Scenario: LLM-assisted heartbeat alerts
+    Given a board-health condition needs an alert
+    When the heartbeat formats the alert
+    Then it uses the Claude CLI when available and a local fallback otherwise
+    And the status is "completed"
+
+  Scenario: Heartbeat status display
+    Given a heartbeat has completed
+    When the terminal footer renders
+    Then it shows the last check time and health or alert text
+    And the status is "completed"
+
+  Scenario: Heartbeat desktop notifications
+    Given a heartbeat produces an alert
+    When desktop notification support is available
+    Then the alert is delivered with the platform notification command
+    And the status is "completed"
+
+  Scenario: Manual heartbeat
+    Given the user is on the story board
+    When the user invokes the heartbeat key
+    Then an immediate health check runs
+    And the status is "completed"
+
+Feature: Legacy data model
+
+  Scenario: Story PRD persistence
+    Given a story contains the five PRD sections
+    When it is saved and loaded
+    Then Problem, Solution, Scope, Acceptance, and GTM content are preserved
+    And the status is "completed"
+
+  Scenario: PM message persistence
+    Given a story has a PM conversation
+    When the story is reopened
+    Then its complete PM message history is available for replay
+    And the status is "completed"
+
+  Scenario: Growth message persistence
+    Given a story has a growth conversation
+    When the story is reopened
+    Then its independent growth message history is preserved
+    And the status is "completed"
+
+  Scenario: Ticket PRD anchors
+    Given a ticket belongs to a story
+    When it is saved
+    Then its PRD anchor and stale marker are preserved
+    And the status is "completed"
+
+  Scenario: Execution log persistence
+    Given an agent execution produces output
+    When execution state is saved
+    Then the execution and its streamed standard-output and error log records are preserved
+    And the status is "completed"
+
+  Scenario: Legacy asynchronous SQLite persistence
+    Given the terminal application stores legacy Story and Ticket records
+    When it accesses the local database
+    Then it uses asynchronous SQLAlchemy with SQLite
+    And the status is "completed"
+
+Feature: Legacy infrastructure and distribution
+
+  Scenario: Local legacy database
+    Given the user runs the terminal application with default configuration
+    When legacy state is persisted
+    Then the SQLite database is stored under the user's AgentBoard data directory
+    And the status is "completed"
+
+  Scenario: Subscription-backed CLI runtimes
+    Given the user already has a supported Claude or Codex CLI session
+    When the legacy application starts agent work
+    Then it can use that CLI without storing an API key
+    And the status is "completed"
+
+  Scenario: Zero hosted operating services
+    Given the user runs the legacy application locally
+    When no agent work is executing
+    Then the application requires no paid hosted infrastructure
+    And the status is "completed"
+
+  Scenario: Python package distribution
+    Given a user installs AgentBoard from its Python package
+    When installation completes
+    Then the terminal command is available through pip or pipx
+    And the status is "completed"
+
+  Scenario: MIT licensing
+    Given a user receives AgentBoard
+    When they inspect its license
+    Then commercial use is permitted under the MIT license
+    And the status is "completed"
+
+  Scenario: Bundled agent configurations
+    Given AgentBoard is installed
+    When a legacy agent type is selected
+    Then bundled YAML configuration is available for each supported type
+    And the status is "completed"
+
+  Scenario: Custom agent configuration path
+    Given the user configures an AI Playbook override path
+    When legacy agents load their definitions
+    Then they use the configured custom YAML location
+    And the status is "completed"
+
+  Scenario: Continuous integration
+    Given a supported Python change is pushed
+    When GitHub Actions runs CI
+    Then Ruff and the Python test suite run on supported Python versions
+    And the status is "completed"
+
+  Scenario: Automated package release
+    Given a release tag is pushed
+    When the release workflow runs
+    Then it publishes the Python package and creates a GitHub release
+    And the status is "completed"
+
+  Scenario: Runtime portability
+    Given the user enables either Claude, Codex, or both
+    When legacy engineering work is routed
+    Then the terminal application is not locked to a single agent runtime
+    And the status is "completed"
+```
+
+## Approved browser v0
+
+```gherkin
+Feature: Browser v0 domain and persistence foundation
+
+  Scenario: Isolated project records
+    Given AgentBoard stores multiple projects
+    When a project is created or queried by its stable identifier
+    Then its unique key, repository, default branch, and timestamps remain isolated from every other project
+    And the status is "completed"
+
+  Scenario: Project-scoped Feature numbering
+    Given projects have independent Feature sequences
+    When a Feature is appended to a project
+    Then it receives the next number and integer backlog rank within only that project
+    And the status is "completed"
+
+  Scenario: Ranked project backlogs
+    Given a project has a ranked backlog
+    When its complete Feature order is changed
+    Then only ranks change, ranks remain unique and stable, and another project's order is unaffected
+    And the status is "completed"
+
+  Scenario: Planned and active Sprints
+    Given each project has an independent Sprint sequence
+    When a planned Sprint starts
+    Then it becomes that project's only active Sprint
+    And the status is "completed"
+
+  Scenario: Ranked Sprint membership
+    Given a Feature and Sprint belong to the same project
+    When an exactly approved Feature is added or Sprint membership is reordered
+    Then membership remains project-local with a unique integer rank within the Sprint
+    And the status is "completed"
+
+  Scenario: Atomic state and audit persistence
+    Given a Project, Feature, backlog, or Sprint command changes state
+    When its transaction succeeds or fails
+    Then state and its minimal structured audit record commit together or both roll back
+    And the status is "completed"
+
+  Scenario: Restart-safe SQLite schema
+    Given AgentBoard uses an explicitly configured browser-v0 database
+    When the process restarts after committed work
+    Then projects, Features, ranks, Sprints, membership, and audit history are reconstructed from SQLite
+    And the status is "completed"
+
+Feature: Browser v0 derived engineering state
+
+  Scenario: Derive the engineering board state
+    Given a Feature has durable planning, Sprint, pull-request, validation, and approval facts
+    When AgentBoard derives its engineering state
+    Then the result follows Ready for Engineering, Working, In Review, Human Review, Ready to Merge, or Done rules
+    And the status is "planned"
+
+Feature: Browser v0 backlog and board
+
+  Scenario: Render project-scoped browser views
+    Given the persistence foundation and engineering-state derivation are complete
+    When the owner opens a project in the browser
+    Then Backlog, Board, Feature detail, Approvals, and Reports show only the selected project's durable state
+    And the status is "planned"
+
+Feature: Browser v0 GitHub synchronization
+
+  Scenario: Reconcile one primary pull request
+    Given an engineering Feature is bound to a primary GitHub pull request
+    When signed webhook or reconciliation facts arrive
+    Then AgentBoard durably and idempotently updates facts for the exact pull-request head
+    And the status is "planned"
+
+Feature: Browser v0 independent validation
+
+  Scenario: Validate an immutable candidate independently
+    Given an implementation candidate has an exact pull-request head
+    When an independent validator assignment and result are processed
+    Then AgentBoard preserves the evidence and derives state only from a valid result for that exact head
+    And the status is "planned"
+
+Feature: Browser v0 Human Review notification
+
+  Scenario: Notify once per eligible review head
+    Given a Feature first enters Human Review for an exact head and destination
+    When notification delivery is reconciled
+    Then one durable, retryable, secret-free delivery is sent with a reachable review link
+    And the status is "planned"
+
+Feature: Browser v0 serial engineering worker
+
+  Scenario: Execute one engineering Feature per project
+    Given a project has eligible engineering work
+    When its implementation worker runs
+    Then no second implementation executes concurrently for that project
+    And the status is "planned"
+```

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any, cast
 
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -120,7 +121,7 @@ class PRDEditor(Vertical):
         }
 
 
-class StoryDetailScreen(Screen):
+class StoryDetailScreen(Screen[None]):
     """Story detail: PRD editor + PM/Growth chat panels + finalize actions."""
 
     TITLE = "Story Detail"
@@ -158,7 +159,7 @@ class StoryDetailScreen(Screen):
     """
 
     def __init__(self, story: Story | None, **kwargs: object) -> None:
-        super().__init__(**kwargs)
+        super().__init__(**cast(dict[str, Any], kwargs))
         self._story = story
         self._is_new = story is None
         self._pm_chat: ChatPanel | None = None
@@ -254,13 +255,16 @@ class StoryDetailScreen(Screen):
             pm_result = await session.execute(pm_stmt)
             growth_result = await session.execute(growth_stmt)
 
-            for msg in pm_result.scalars():
+            for pm_message in pm_result.scalars():
                 if self._pm_chat:
-                    self._pm_chat.add_message(msg.role.value, msg.content)
+                    self._pm_chat.add_message(pm_message.role.value, pm_message.content)
 
-            for msg in growth_result.scalars():
+            for growth_message in growth_result.scalars():
                 if self._growth_chat:
-                    self._growth_chat.add_message(msg.role.value, msg.content)
+                    self._growth_chat.add_message(
+                        growth_message.role.value,
+                        growth_message.content,
+                    )
 
     def _on_pm_message(self, text: str) -> None:
         """Handle user sending a PM chat message."""

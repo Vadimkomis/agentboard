@@ -107,7 +107,7 @@ class EngineeringRunner:
             # Run the agent
             on_output(f"[runner] Starting {ticket.runtime.value} agent...\n")
             client = self._get_client(ticket.runtime)
-            await client.run_agent(  # type: ignore[call-arg]
+            await client.run_agent(
                 system=system,
                 task=task,
                 workspace=str(workspace),

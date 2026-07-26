@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 
 @dataclass
@@ -23,7 +24,7 @@ class AgentDefinition:
     system_prompt: str = ""
 
     @classmethod
-    def from_dict(cls, data: dict) -> AgentDefinition:
+    def from_dict(cls, data: dict[str, Any]) -> AgentDefinition:
         return cls(
             name=data["name"],
             description=data.get("description", ""),

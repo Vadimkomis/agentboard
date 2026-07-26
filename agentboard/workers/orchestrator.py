@@ -14,6 +14,7 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,12 +33,23 @@ from agentboard.core.models import (
 logger = logging.getLogger(__name__)
 
 
+class EngineeringRunnerPort(Protocol):
+    async def run(
+        self,
+        *,
+        story: Story,
+        ticket: Ticket,
+        execution: Execution,
+        on_output: Callable[[str], None],
+    ) -> str | None: ...
+
+
 class Orchestrator:
     """Manages async execution of all tickets within a story."""
 
     def __init__(
         self,
-        engineering_runner: object,
+        engineering_runner: EngineeringRunnerPort,
         on_story_update: Callable[[int, StoryStatus], None] | None = None,
         on_ticket_update: Callable[[int, TicketStatus], None] | None = None,
     ) -> None:
@@ -45,7 +57,7 @@ class Orchestrator:
         self._on_story_update = on_story_update
         self._on_ticket_update = on_ticket_update
         # Active tasks by ticket_id
-        self._active_tasks: dict[int, asyncio.Task] = {}
+        self._active_tasks: dict[int, asyncio.Task[None]] = {}
 
     async def decompose_and_start(
         self,
@@ -202,7 +214,7 @@ class Orchestrator:
             log_buffer.append(chunk)
 
         try:
-            pr_url = await self._runner.run(  # type: ignore[call-arg]
+            pr_url = await self._runner.run(
                 story=story,
                 ticket=ticket,
                 execution=execution,

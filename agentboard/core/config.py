@@ -9,7 +9,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 CONFIG_DIR = Path.home() / ".agentboard"
 CONFIG_PATH = CONFIG_DIR / "config.yml"
@@ -88,7 +88,7 @@ def load_config(config_path: Path | None = None) -> Config:
         data = yaml.safe_load(f) or {}
 
     # Filter to known fields only
-    known = set(Config.__dataclass_fields__)  # type: ignore[attr-defined]
+    known = set(Config.__dataclass_fields__)
     filtered = {k: v for k, v in data.items() if k in known}
     return Config(**filtered)
 
