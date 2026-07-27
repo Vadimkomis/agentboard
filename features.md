@@ -333,16 +333,30 @@ Feature: Browser v0 domain and persistence foundation
     Then its unique key, repository, default branch, and timestamps remain isolated from every other project
     And the status is "completed"
 
+  Scenario: Deterministic Project queries
+    Given AgentBoard stores Projects with stable identifiers
+    When a caller gets one Project or lists all Projects
+    Then Get returns the requested Project or a typed not-found error and List returns Projects in identifier order
+    And the status is "completed"
+
   Scenario: Project-scoped Feature numbering
     Given projects have independent Feature sequences
     When a Feature is appended to a project
     Then it receives the next number and integer backlog rank within only that project
     And the status is "completed"
 
-  Scenario: Ranked project backlogs
-    Given a project has a ranked backlog
-    When its complete Feature order is changed
-    Then only ranks change, ranks remain unique and stable, and another project's order is unaffected
+  Scenario: Future project backlog
+    Given a Project has non-completed Features and an optional active Sprint
+    When its future backlog is listed
+    Then it contains only non-completed Project Features outside the active Sprint
+    And Features completed by timestamp or Done engineering state are excluded
+    And the status is "completed"
+
+  Scenario: Ranked future backlog
+    Given a Project has a ranked future backlog and excluded active-Sprint or completed Features
+    When the exact future-backlog Feature set is reordered
+    Then only future Features exchange their available Project rank slots
+    And excluded Feature ranks, Current Sprint ranks, non-rank fields, and every other Project remain unchanged
     And the status is "completed"
 
   Scenario: Planned and active Sprints

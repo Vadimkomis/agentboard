@@ -8,10 +8,11 @@ Looks in (in order):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+yaml: Any = import_module("yaml")
 
 
 @dataclass

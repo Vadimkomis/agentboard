@@ -13,6 +13,7 @@ from alembic import command
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
+import agentboard.application as browser_application
 from agentboard.application import (
     AddFeatureToSprint,
     CreateFeature,
@@ -24,11 +25,13 @@ from agentboard.application import (
     ReorderSprintMembership,
     StartSprint,
 )
-from agentboard.domain.enums import PlanningStage, SprintState
+from agentboard.domain.enums import EngineeringState, PlanningStage, SprintState
 from agentboard.domain.errors import (
     ActiveSprintExistsError,
     DesignApprovalRequiredError,
+    IncompleteReorderError,
     PersistenceConflictError,
+    ProjectNotFoundError,
 )
 from agentboard.infrastructure import (
     Database,
@@ -212,6 +215,34 @@ async def test_database_session_rolls_back_and_validates_timeout(tmp_path: Path)
         Database(database_path, busy_timeout_ms=0)
 
 
+async def test_sqlite_get_and_list_projects_are_complete_and_deterministic(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "project-queries.db"
+    await upgrade_database_async(database_path)
+    database = Database(database_path)
+    try:
+        async with database.session() as session:
+            session.add_all(
+                [
+                    _project_record("THIRTY", project_id=30),
+                    _project_record("TEN", project_id=10),
+                    _project_record("TWENTY", project_id=20),
+                ]
+            )
+            await session.commit()
+
+        project = await browser_application.GetProject(database.unit_of_work)(project_id=20)
+        projects = await browser_application.ListProjects(database.unit_of_work)()
+
+        assert project.key == "TWENTY"
+        assert [item.id for item in projects] == [10, 20, 30]
+        with pytest.raises(ProjectNotFoundError):
+            await browser_application.GetProject(database.unit_of_work)(project_id=404)
+    finally:
+        await database.dispose()
+
+
 async def test_end_to_end_restart_preserves_isolated_ranked_state_and_audits(
     tmp_path: Path,
 ) -> None:
@@ -279,7 +310,7 @@ async def test_end_to_end_restart_preserves_isolated_ranked_state_and_audits(
                 await session.scalars(select(AuditEventRecord).order_by(AuditEventRecord.id))
             )
 
-        assert [feature.title for feature in backlog] == ["Three", "One", "Two"]
+        assert backlog == []
         assert [feature.title for feature in other_backlog] == ["Other"]
         assert [(feature.number, feature.rank) for feature in other_backlog] == [(1, 1)]
         assert active is not None
@@ -440,6 +471,111 @@ async def test_sqlite_backlog_reorders_first_middle_and_last_without_scope_leaks
         assert len(reloaded_other) == 1
         assert reloaded_other[0].rank == 1
         assert _without_rank(reloaded_other[0]) == other_before
+    finally:
+        await database.dispose()
+
+
+async def test_sqlite_future_backlog_is_disjoint_and_reorders_only_its_exact_set(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "future-backlog.db"
+    await upgrade_database_async(database_path)
+    database = Database(database_path)
+    try:
+        factory = database.unit_of_work
+        project = await _create_project(factory, "ONE")
+        other_project = await _create_project(factory, "TWO")
+        project_id = _required(project.id)
+        other_project_id = _required(other_project.id)
+        first = await _create_feature(factory, project_id, "First", approved=True)
+        current = await _create_feature(factory, project_id, "Current", approved=True)
+        completed = await _create_feature(factory, project_id, "Completed", approved=True)
+        done = await _create_feature(factory, project_id, "Done", approved=True)
+        last = await _create_feature(factory, project_id, "Last", approved=True)
+        other = await _create_feature(factory, other_project_id, "Other", approved=True)
+        sprint = await CreatePlannedSprint(factory, fixed_clock)(
+            project_id=project_id,
+            name="Current Sprint",
+        )
+        sprint_id = _required(sprint.id)
+        current_id = _required(current.id)
+        await AddFeatureToSprint(factory, fixed_clock)(
+            sprint_id=sprint_id,
+            feature_id=current_id,
+        )
+        await StartSprint(factory, fixed_clock)(sprint_id=sprint_id)
+        async with database.session() as session:
+            completed_record = await session.get(FeatureRecord, _required(completed.id))
+            done_record = await session.get(FeatureRecord, _required(done.id))
+            assert completed_record is not None
+            assert done_record is not None
+            completed_record.completed_at = NOW
+            done_record.engineering_state = EngineeringState.done.value
+            await session.commit()
+
+        backlog = await ListProjectBacklog(factory)(project_id=project_id)
+        active = await GetActiveSprint(factory)(project_id=project_id)
+
+        assert active is not None
+        backlog_ids = {_required(feature.id) for feature in backlog}
+        active_ids = {_required(feature.id) for feature in active.features}
+        assert backlog_ids == {_required(first.id), _required(last.id)}
+        assert active_ids == {current_id}
+        assert backlog_ids.isdisjoint(active_ids)
+        assert backlog_ids | active_ids == {
+            _required(first.id),
+            current_id,
+            _required(last.id),
+        }
+
+        reordered = await ReorderProjectBacklog(factory, fixed_clock)(
+            project_id=project_id,
+            feature_ids=[_required(last.id), _required(first.id)],
+        )
+
+        assert [feature.id for feature in reordered] == [last.id, first.id]
+        assert [feature.rank for feature in reordered] == [1, 5]
+        async with database.session() as session:
+            ranks = dict(
+                (
+                    await session.execute(
+                        select(FeatureRecord.id, FeatureRecord.rank).order_by(FeatureRecord.id)
+                    )
+                ).all()
+            )
+            membership_rank = await session.scalar(
+                select(SprintFeatureRecord.sprint_rank).where(
+                    SprintFeatureRecord.sprint_id == sprint_id,
+                    SprintFeatureRecord.feature_id == current_id,
+                )
+            )
+        assert ranks[current_id] == 2
+        assert ranks[_required(completed.id)] == 3
+        assert ranks[_required(done.id)] == 4
+        assert ranks[_required(other.id)] == 1
+        assert membership_rank == 1
+
+        with pytest.raises(IncompleteReorderError):
+            await ReorderProjectBacklog(factory, fixed_clock)(
+                project_id=project_id,
+                feature_ids=[_required(first.id), current_id, _required(last.id)],
+            )
+
+        async with database.session() as session:
+            ranks_after_invalid = dict(
+                (
+                    await session.execute(
+                        select(FeatureRecord.id, FeatureRecord.rank).order_by(FeatureRecord.id)
+                    )
+                ).all()
+            )
+            reorder_audits = await session.scalar(
+                select(text("count(*)"))
+                .select_from(AuditEventRecord)
+                .where(AuditEventRecord.event_type == "backlog.reordered")
+            )
+        assert ranks_after_invalid == ranks
+        assert reorder_audits == 1
     finally:
         await database.dispose()
 
@@ -750,9 +886,30 @@ async def test_audit_failure_rolls_back_create_and_two_phase_reorder(
 
         await _drop_failing_audit_trigger(database)
         project = await _create_project(database.unit_of_work, "ONE")
+        other_project = await _create_project(database.unit_of_work, "TWO")
         project_id = _required(project.id)
+        other_project_id = _required(other_project.id)
         first = await _create_feature(database.unit_of_work, project_id, "First")
+        current = await _create_feature(
+            database.unit_of_work,
+            project_id,
+            "Current",
+            approved=True,
+        )
         second = await _create_feature(database.unit_of_work, project_id, "Second")
+        other = await _create_feature(database.unit_of_work, other_project_id, "Other")
+        sprint = await CreatePlannedSprint(database.unit_of_work, fixed_clock)(
+            project_id=project_id,
+            name="Current Sprint",
+        )
+        sprint_id = _required(sprint.id)
+        current_id = _required(current.id)
+        await AddFeatureToSprint(database.unit_of_work, fixed_clock)(
+            sprint_id=sprint_id,
+            feature_id=current_id,
+        )
+        await StartSprint(database.unit_of_work, fixed_clock)(sprint_id=sprint_id)
+        before = await _rank_and_audit_snapshot(database)
         await _install_failing_audit_trigger(database)
 
         with pytest.raises(PersistenceConflictError):
@@ -763,15 +920,18 @@ async def test_audit_failure_rolls_back_create_and_two_phase_reorder(
 
         await _drop_failing_audit_trigger(database)
         backlog = await ListProjectBacklog(database.unit_of_work)(project_id=project_id)
-        async with database.session() as session:
-            event_types = list(
-                await session.scalars(
-                    select(AuditEventRecord.event_type).order_by(AuditEventRecord.id)
-                )
-            )
+        active = await GetActiveSprint(database.unit_of_work)(project_id=project_id)
+        after = await _rank_and_audit_snapshot(database)
+
         assert [feature.title for feature in backlog] == ["First", "Second"]
-        assert [feature.rank for feature in backlog] == [1, 2]
-        assert event_types == ["project.created", "feature.created", "feature.created"]
+        assert [feature.rank for feature in backlog] == [1, 3]
+        assert active is not None
+        assert [feature.id for feature in active.features] == [current_id]
+        assert after == before
+        feature_ranks, sprint_ranks, _ = after
+        assert feature_ranks[current_id] == 2
+        assert feature_ranks[_required(other.id)] == 1
+        assert sprint_ranks[(sprint_id, current_id)] == 1
     finally:
         await database.dispose()
 
@@ -803,7 +963,7 @@ async def test_unit_of_work_guards_and_conflict_translation(tmp_path: Path) -> N
 
         clean = SqlAlchemyUnitOfWork(database.session_factory)
         async with clean:
-            await clean.features.reorder(999, [])
+            await clean.features.reorder_future_backlog(999, [])
             await clean.sprints.reorder_features(999, [])
             with pytest.raises(ValueError, match="unpersisted Sprint"):
                 await clean.sprints.update(_unpersisted_sprint())
@@ -1028,6 +1188,35 @@ def _unpersisted_sprint():
         created_at=NOW,
         updated_at=NOW,
     )
+
+
+async def _rank_and_audit_snapshot(
+    database: Database,
+) -> tuple[dict[int, int], dict[tuple[int, int], int], list[str]]:
+    async with database.session() as session:
+        feature_rows = (
+            await session.execute(
+                select(FeatureRecord.id, FeatureRecord.rank).order_by(FeatureRecord.id)
+            )
+        ).all()
+        sprint_rows = (
+            await session.execute(
+                select(
+                    SprintFeatureRecord.sprint_id,
+                    SprintFeatureRecord.feature_id,
+                    SprintFeatureRecord.sprint_rank,
+                ).order_by(
+                    SprintFeatureRecord.sprint_id,
+                    SprintFeatureRecord.feature_id,
+                )
+            )
+        ).all()
+        event_types = list(
+            await session.scalars(select(AuditEventRecord.event_type).order_by(AuditEventRecord.id))
+        )
+    feature_ranks = dict(feature_rows)
+    sprint_ranks = {(sprint_id, feature_id): rank for sprint_id, feature_id, rank in sprint_rows}
+    return feature_ranks, sprint_ranks, event_types
 
 
 async def _install_failing_audit_trigger(database: Database) -> None:

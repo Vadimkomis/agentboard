@@ -8,6 +8,7 @@ from types import TracebackType
 
 import pytest
 
+import agentboard.application as browser_application
 from agentboard.application import (
     AddFeatureToSprint,
     CreateFeature,
@@ -21,7 +22,7 @@ from agentboard.application import (
     _support,
 )
 from agentboard.domain.entities import AuditEvent, Feature, Project, Sprint, SprintFeature
-from agentboard.domain.enums import PlanningStage, SprintState
+from agentboard.domain.enums import EngineeringState, PlanningStage, SprintState
 from agentboard.domain.errors import (
     ActiveSprintExistsError,
     CrossProjectFeatureError,
@@ -68,6 +69,9 @@ class FakeProjectRepository:
             None,
         )
 
+    async def list(self) -> list[Project]:
+        return sorted(self._uow.projects_data.values(), key=lambda project: project.id or 0)
+
     async def add(self, project: Project) -> Project:
         if self._uow.assign_identifiers:
             project.id = _next_identifier(self._uow.projects_data)
@@ -89,6 +93,26 @@ class FakeFeatureRepository:
                 feature
                 for feature in self._uow.features_data.values()
                 if feature.project_id == project_id
+            ),
+            key=lambda feature: feature.rank,
+        )
+
+    async def list_future_backlog(self, project_id: int) -> list[Feature]:
+        active_feature_ids = {
+            membership.feature_id
+            for membership in self._uow.memberships_data.values()
+            if (sprint := self._uow.sprints_data.get(membership.sprint_id)) is not None
+            and sprint.project_id == project_id
+            and sprint.state is SprintState.active
+        }
+        return sorted(
+            (
+                feature
+                for feature in self._uow.features_data.values()
+                if feature.project_id == project_id
+                and feature.id not in active_feature_ids
+                and feature.completed_at is None
+                and feature.engineering_state is not EngineeringState.done
             ),
             key=lambda feature: feature.rank,
         )
@@ -116,10 +140,15 @@ class FakeFeatureRepository:
             self._uow.features_data[feature.id] = feature
         return feature
 
-    async def reorder(self, project_id: int, ordered_ids: list[int]) -> None:
-        for rank, feature_id in enumerate(ordered_ids, start=1):
+    async def reorder_future_backlog(
+        self,
+        project_id: int,
+        ordered_ids: list[int],
+    ) -> None:
+        rank_slots = sorted(self._uow.features_data[feature_id].rank for feature_id in ordered_ids)
+        for index, (rank, feature_id) in enumerate(zip(rank_slots, ordered_ids, strict=True)):
             self._uow.features_data[feature_id].rank = rank
-            if self._uow.fail_backlog_reorder and rank == 1:
+            if self._uow.fail_backlog_reorder and index == 0:
                 raise RuntimeError("injected backlog reorder failure")
 
 
@@ -325,6 +354,8 @@ def seed_feature(
     rank: int,
     approval: str | None = "design-sha-1",
     title: str | None = None,
+    engineering_state: EngineeringState | None = None,
+    completed_at: datetime | None = None,
 ) -> Feature:
     feature = Feature(
         id=feature_id,
@@ -334,12 +365,12 @@ def seed_feature(
         description=f"Description {feature_id}",
         rank=rank,
         planning_stage=PlanningStage.design_review,
-        engineering_state=None,
+        engineering_state=engineering_state,
         priority="medium",
         estimate=3,
         owner="owner@example.test",
         approved_design_hash=approval,
-        completed_at=None,
+        completed_at=completed_at,
         created_at=NOW,
         updated_at=NOW,
     )
@@ -469,6 +500,37 @@ async def test_create_project_requires_the_adapter_to_assign_an_identifier() -> 
     assert factory.store.audit_events == []
 
 
+async def test_get_project_returns_the_requested_project() -> None:
+    store = FakeStore()
+    expected = seed_project(store, project_id=7, key="SEVEN")
+    factory = FakeUnitOfWorkFactory(store)
+
+    project = await browser_application.GetProject(factory)(project_id=7)
+
+    assert project == expected
+
+
+async def test_get_project_rejects_a_missing_project() -> None:
+    factory = FakeUnitOfWorkFactory()
+
+    with pytest.raises(ProjectNotFoundError) as captured:
+        await browser_application.GetProject(factory)(project_id=404)
+
+    assert captured.value.code == "project_not_found"
+
+
+async def test_list_projects_returns_stable_ascending_identifier_order() -> None:
+    store = FakeStore()
+    seed_project(store, project_id=30, key="THIRTY")
+    seed_project(store, project_id=10, key="TEN")
+    seed_project(store, project_id=20, key="TWENTY")
+    factory = FakeUnitOfWorkFactory(store)
+
+    projects = await browser_application.ListProjects(factory)()
+
+    assert [project.id for project in projects] == [10, 20, 30]
+
+
 async def test_create_feature_appends_with_independent_project_number_and_rank() -> None:
     store = FakeStore()
     seed_project(store, project_id=1, key="ONE")
@@ -563,6 +625,94 @@ async def test_list_project_backlog_is_ranked_and_project_scoped() -> None:
     assert {feature.project_id for feature in backlog} == {1}
 
 
+async def test_future_backlog_and_active_sprint_are_disjoint_noncompleted_views() -> None:
+    store = FakeStore()
+    seed_project(store, project_id=1, key="ONE")
+    seed_project(store, project_id=2, key="TWO")
+    seed_sprint(
+        store,
+        sprint_id=10,
+        project_id=1,
+        number=1,
+        state=SprintState.active,
+    )
+    seed_sprint(store, sprint_id=11, project_id=1, number=2)
+    future = seed_feature(store, feature_id=1, project_id=1, number=1, rank=4)
+    current = seed_feature(store, feature_id=2, project_id=1, number=2, rank=2)
+    seed_feature(
+        store,
+        feature_id=3,
+        project_id=1,
+        number=3,
+        rank=3,
+        completed_at=NOW,
+    )
+    seed_feature(
+        store,
+        feature_id=4,
+        project_id=1,
+        number=4,
+        rank=1,
+        engineering_state=EngineeringState.done,
+    )
+    planned = seed_feature(store, feature_id=5, project_id=1, number=5, rank=5)
+    seed_feature(store, feature_id=6, project_id=2, number=1, rank=1)
+    seed_membership(store, sprint_id=10, feature_id=2, rank=7)
+    seed_membership(store, sprint_id=11, feature_id=5, rank=1)
+    factory = FakeUnitOfWorkFactory(store)
+
+    backlog = await ListProjectBacklog(factory)(project_id=1)
+    active = await GetActiveSprint(factory)(project_id=1)
+
+    assert [feature.id for feature in backlog] == [future.id, planned.id]
+    assert active is not None
+    assert [feature.id for feature in active.features] == [current.id]
+    backlog_ids = {feature.id for feature in backlog}
+    active_ids = {feature.id for feature in active.features}
+    assert backlog_ids.isdisjoint(active_ids)
+    assert backlog_ids | active_ids == {1, 2, 5}
+
+
+@pytest.mark.parametrize(
+    ("engineering_state", "completed_at"),
+    [
+        pytest.param(EngineeringState.done, None, id="engineering-done"),
+        pytest.param(None, NOW, id="completed-at"),
+    ],
+)
+async def test_completed_active_sprint_feature_remains_in_current_sprint_only(
+    engineering_state: EngineeringState | None,
+    completed_at: datetime | None,
+) -> None:
+    store = FakeStore()
+    seed_project(store, project_id=1, key="ONE")
+    seed_sprint(
+        store,
+        sprint_id=10,
+        project_id=1,
+        number=1,
+        state=SprintState.active,
+    )
+    feature = seed_feature(
+        store,
+        feature_id=1,
+        project_id=1,
+        number=1,
+        rank=1,
+        engineering_state=engineering_state,
+        completed_at=completed_at,
+    )
+    seed_membership(store, sprint_id=10, feature_id=1, rank=1)
+    factory = FakeUnitOfWorkFactory(store)
+
+    backlog = await ListProjectBacklog(factory)(project_id=1)
+    active = await GetActiveSprint(factory)(project_id=1)
+
+    assert backlog == []
+    assert active is not None
+    assert list(active.features) == [feature]
+
+
 async def test_list_project_backlog_rejects_a_missing_project() -> None:
     factory = FakeUnitOfWorkFactory()
 
@@ -612,6 +762,78 @@ async def test_reorder_backlog_moves_first_middle_and_last_without_other_mutatio
     } == original_fields
     assert factory.store.features[4] == other
     assert factory.store.audit_events[-1].payload == {"feature_ids": requested_ids}
+
+
+async def test_reorder_future_backlog_preserves_excluded_ranks_and_project_scope() -> None:
+    store = FakeStore()
+    seed_project(store, project_id=1, key="ONE")
+    seed_project(store, project_id=2, key="TWO")
+    seed_sprint(
+        store,
+        sprint_id=10,
+        project_id=1,
+        number=1,
+        state=SprintState.active,
+    )
+    first = seed_feature(store, feature_id=1, project_id=1, number=1, rank=1)
+    active = seed_feature(store, feature_id=2, project_id=1, number=2, rank=2)
+    completed = seed_feature(
+        store,
+        feature_id=3,
+        project_id=1,
+        number=3,
+        rank=3,
+        completed_at=NOW,
+    )
+    last = seed_feature(store, feature_id=4, project_id=1, number=4, rank=4)
+    other = seed_feature(store, feature_id=5, project_id=2, number=1, rank=1)
+    membership = seed_membership(store, sprint_id=10, feature_id=2, rank=8)
+    factory = FakeUnitOfWorkFactory(store)
+
+    reordered = await ReorderProjectBacklog(factory, fixed_clock)(
+        project_id=1,
+        feature_ids=[4, 1],
+    )
+
+    assert [feature.id for feature in reordered] == [last.id, first.id]
+    assert [feature.rank for feature in reordered] == [1, 4]
+    assert factory.store.features[2].rank == active.rank == 2
+    assert factory.store.features[3].rank == completed.rank == 3
+    assert factory.store.features[5].rank == other.rank == 1
+    assert factory.store.memberships[(10, 2)].sprint_rank == membership.sprint_rank == 8
+    assert audit_types(factory.store) == ["backlog.reordered"]
+
+
+async def test_reorder_future_backlog_rejects_active_sprint_members_atomically() -> None:
+    store = FakeStore()
+    seed_project(store, project_id=1, key="ONE")
+    seed_sprint(
+        store,
+        sprint_id=10,
+        project_id=1,
+        number=1,
+        state=SprintState.active,
+    )
+    seed_feature(store, feature_id=1, project_id=1, number=1, rank=1)
+    seed_feature(store, feature_id=2, project_id=1, number=2, rank=2)
+    seed_feature(store, feature_id=3, project_id=1, number=3, rank=3)
+    seed_membership(store, sprint_id=10, feature_id=2, rank=6)
+    factory = FakeUnitOfWorkFactory(store)
+
+    with pytest.raises(IncompleteReorderError):
+        await ReorderProjectBacklog(factory, fixed_clock)(
+            project_id=1,
+            feature_ids=[3, 2, 1],
+        )
+
+    assert [factory.store.features[feature_id].rank for feature_id in (1, 2, 3)] == [
+        1,
+        2,
+        3,
+    ]
+    assert factory.store.memberships[(10, 2)].sprint_rank == 6
+    assert factory.store.audit_events == []
+    assert factory.instances[0].rolled_back is True
 
 
 @pytest.mark.parametrize("requested_ids", [[], [1]])

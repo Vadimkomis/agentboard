@@ -7,7 +7,7 @@ from datetime import datetime
 from agentboard.application._support import Clock, persisted_id, require_text, utc_now
 from agentboard.application.ports import UnitOfWorkFactory
 from agentboard.domain.entities import AuditEvent, Project
-from agentboard.domain.errors import DuplicateProjectKeyError
+from agentboard.domain.errors import DuplicateProjectKeyError, ProjectNotFoundError
 
 
 class CreateProject:
@@ -32,6 +32,27 @@ class CreateProject:
             await uow.audit_events.add(_created_event(project, now))
             await uow.commit()
             return project
+
+
+class GetProject:
+    def __init__(self, uow_factory: UnitOfWorkFactory) -> None:
+        self._uow_factory = uow_factory
+
+    async def __call__(self, *, project_id: int) -> Project:
+        async with self._uow_factory() as uow:
+            project = await uow.projects.get(project_id)
+            if project is None:
+                raise ProjectNotFoundError(project_id)
+            return project
+
+
+class ListProjects:
+    def __init__(self, uow_factory: UnitOfWorkFactory) -> None:
+        self._uow_factory = uow_factory
+
+    async def __call__(self) -> list[Project]:
+        async with self._uow_factory() as uow:
+            return await uow.projects.list()
 
 
 def _validate_project(

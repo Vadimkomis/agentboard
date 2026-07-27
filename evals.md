@@ -7,8 +7,8 @@ Statuses are `planned`, `in-progress`, `passing`, `failing`, and `deprecated`.
 
 - Name: Project isolation
 - Status: passing
-- Description: Creating and querying multiple Projects never exposes or changes another Project's repository facts, Features, backlog, Sprints, or audit history.
-- Notes: Cover application queries with deterministic in-memory fakes and persistence queries with a temporary SQLite database; corresponds to acceptance evals 4 and 6.
+- Description: Creating, getting, and listing multiple Projects never exposes or changes another Project's repository facts, Features, backlog, Sprints, or audit history.
+- Notes: Cover typed Get not-found behavior, deterministic List ordering by stable identifier, application queries with in-memory fakes, and persistence queries with temporary SQLite databases; corresponds to acceptance evals 4 and 6.
 
 - Name: Project-scoped numbering
 - Status: passing
@@ -17,13 +17,13 @@ Statuses are `planned`, `in-progress`, `passing`, `failing`, and `deprecated`.
 
 - Name: Ranked backlog persistence
 - Status: passing
-- Description: New Features append with contiguous integer ranks, complete reorder requests support first, middle, and last moves, and committed order survives a database restart.
-- Notes: Include empty and single-Feature backlogs, stable non-rank fields, integer rank uniqueness, and restart reconstruction; corresponds to acceptance evals 5, 9, and 31.
+- Description: The future backlog contains non-completed Project Features outside the active Sprint; new Features append with integer ranks, and committed order survives a database restart.
+- Notes: Exclude active-Sprint membership, `completed_at` Features, and Done engineering state; cover empty and single-Feature backlogs, stable non-rank fields, integer rank uniqueness, and restart reconstruction; corresponds to acceptance evals 5, 9, and 31.
 
 - Name: Atomic backlog reordering
 - Status: passing
-- Description: A reorder accepts each Feature in the selected Project exactly once and either persists the complete collision-safe rank change or leaves every previous rank unchanged.
-- Notes: Cover missing, duplicate, unknown, and cross-Project identifiers with typed errors, rollback assertions, and no audit event after failure; corresponds to acceptance eval 6.
+- Description: A reorder accepts exactly the current future-backlog Feature set and either exchanges its existing available Project rank slots atomically or leaves every previous rank unchanged.
+- Notes: Prove active-Sprint and completed Feature ranks remain fixed, Current Sprint ranks never change, other Projects stay isolated, and invalid mixed active/future, missing, duplicate, unknown, or cross-Project requests roll back without an audit event; corresponds to acceptance eval 6.
 
 - Name: One active Sprint per Project
 - Status: passing

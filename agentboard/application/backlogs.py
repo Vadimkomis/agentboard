@@ -25,7 +25,7 @@ class ListProjectBacklog:
         async with self._uow_factory() as uow:
             if await uow.projects.get(project_id) is None:
                 raise ProjectNotFoundError(project_id)
-            return await uow.features.list_for_project(project_id)
+            return await uow.features.list_future_backlog(project_id)
 
 
 class ReorderProjectBacklog:
@@ -36,12 +36,12 @@ class ReorderProjectBacklog:
     async def __call__(self, *, project_id: int, feature_ids: Sequence[int]) -> list[Feature]:
         async with self._uow_factory() as uow:
             await _ensure_project(uow, project_id)
-            current = await uow.features.list_for_project(project_id)
+            current = await uow.features.list_future_backlog(project_id)
             await _validate_requested_features(uow, project_id, current, feature_ids)
-            await uow.features.reorder(project_id, feature_ids)
+            await uow.features.reorder_future_backlog(project_id, feature_ids)
             await uow.audit_events.add(_reorder_event(project_id, feature_ids, self._clock()))
             await uow.commit()
-            return await uow.features.list_for_project(project_id)
+            return await uow.features.list_future_backlog(project_id)
 
 
 async def _ensure_project(uow: UnitOfWork, project_id: int) -> None:

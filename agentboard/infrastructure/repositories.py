@@ -6,10 +6,11 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import case, func, select, update
+from sqlalchemy import case, func, or_, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.base import Executable
+from sqlalchemy.sql.elements import ColumnElement
 
 from agentboard.domain.entities import (
     AuditEvent,
@@ -42,6 +43,10 @@ class SqlAlchemyProjectRepository:
         record = await self._session.scalar(select(ProjectRecord).where(ProjectRecord.key == key))
         return None if record is None else _project_from_record(record)
 
+    async def list(self) -> list[Project]:
+        records = await self._session.scalars(select(ProjectRecord).order_by(ProjectRecord.id))
+        return [_project_from_record(record) for record in records]
+
     async def add(self, project: Project) -> Project:
         record = ProjectRecord(
             id=project.id,
@@ -66,10 +71,10 @@ class SqlAlchemyFeatureRepository:
         record = await self._session.get(FeatureRecord, feature_id)
         return None if record is None else _feature_from_record(record)
 
-    async def list_for_project(self, project_id: int) -> list[Feature]:
+    async def list_future_backlog(self, project_id: int) -> list[Feature]:
         records = await self._session.scalars(
             select(FeatureRecord)
-            .where(FeatureRecord.project_id == project_id)
+            .where(*_future_backlog_filters(project_id))
             .order_by(FeatureRecord.rank, FeatureRecord.id)
         )
         return [_feature_from_record(record) for record in records]
@@ -93,14 +98,19 @@ class SqlAlchemyFeatureRepository:
         feature.id = record.id
         return feature
 
-    async def reorder(self, project_id: int, ordered_ids: Sequence[int]) -> None:
-        current_ids = list(
-            await self._session.scalars(
-                select(FeatureRecord.id)
-                .where(FeatureRecord.project_id == project_id)
+    async def reorder_future_backlog(
+        self,
+        project_id: int,
+        ordered_ids: Sequence[int],
+    ) -> None:
+        rows = (
+            await self._session.execute(
+                select(FeatureRecord.id, FeatureRecord.rank)
+                .where(*_future_backlog_filters(project_id))
                 .order_by(FeatureRecord.rank, FeatureRecord.id)
             )
-        )
+        ).all()
+        current_ids = [feature_id for feature_id, _rank in rows]
         validate_exact_order(current_ids, ordered_ids)
         if not ordered_ids:
             return
@@ -113,7 +123,9 @@ class SqlAlchemyFeatureRepository:
         }
         await self._set_ranks(project_id, temporary_ranks)
         await _flush(self._session)
-        await self._set_ranks(project_id, contiguous_ranks(ordered_ids))
+        rank_slots = sorted(rank for _feature_id, rank in rows)
+        final_ranks = dict(zip(ordered_ids, rank_slots, strict=True))
+        await self._set_ranks(project_id, final_ranks)
 
     async def _set_ranks(self, project_id: int, ranks: dict[int, int]) -> None:
         statement = (
@@ -126,6 +138,26 @@ class SqlAlchemyFeatureRepository:
             .execution_options(synchronize_session=False)
         )
         await _execute_write(self._session, statement)
+
+
+def _future_backlog_filters(project_id: int) -> tuple[ColumnElement[bool], ...]:
+    active_feature_ids = (
+        select(SprintFeatureRecord.feature_id)
+        .join(SprintRecord, SprintRecord.id == SprintFeatureRecord.sprint_id)
+        .where(
+            SprintRecord.project_id == project_id,
+            SprintRecord.state == SprintState.active.value,
+        )
+    )
+    return (
+        FeatureRecord.project_id == project_id,
+        FeatureRecord.completed_at.is_(None),
+        or_(
+            FeatureRecord.engineering_state.is_(None),
+            FeatureRecord.engineering_state != EngineeringState.done.value,
+        ),
+        FeatureRecord.id.not_in(active_feature_ids),
+    )
 
 
 class SqlAlchemySprintRepository:

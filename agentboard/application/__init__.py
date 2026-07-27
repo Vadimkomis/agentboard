@@ -2,7 +2,7 @@
 
 from agentboard.application.backlogs import ListProjectBacklog, ReorderProjectBacklog
 from agentboard.application.features import CreateFeature
-from agentboard.application.projects import CreateProject
+from agentboard.application.projects import CreateProject, GetProject, ListProjects
 from agentboard.application.sprints import (
     AddFeatureToSprint,
     CreatePlannedSprint,
@@ -17,7 +17,9 @@ __all__ = [
     "CreatePlannedSprint",
     "CreateProject",
     "GetActiveSprint",
+    "GetProject",
     "ListProjectBacklog",
+    "ListProjects",
     "ReorderProjectBacklog",
     "ReorderSprintMembership",
     "StartSprint",
