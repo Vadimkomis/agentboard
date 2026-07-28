@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon %}
+{% block title %}Projects · AgentBoard{% endblock %}
+{% block eyebrow %}Private workspace{% endblock %}
+{% block page_title %}Projects{% endblock %}
+{% block content %}
+  <div class="content-header">
+    <div>
+      <p class="kicker">Your workspaces</p>
+      <h2>Choose a project</h2>
+      <p>Each project keeps its backlog, active sprint, approvals, and history isolated.</p>
+    </div>
+  </div>
+  {% if projects %}
+    <section class="project-grid" aria-label="Projects">
+      {% for item in projects %}
+        <a class="project-card" href="/projects/{{ item.key|urlencode }}/backlog">
+          <div class="project-card__top">
+            <span class="project-avatar">{{ item.key[:2]|upper }}</span>
+            <span class="row-arrow" aria-hidden="true">{{ icon("arrow") }}</span>
+          </div>
+          <h2>{{ item.name }}</h2>
+          <p>{{ item.repository_url }}</p>
+          <div class="project-card__meta">
+            <span>{{ item.key }}</span>
+            <span>{{ item.default_branch }}</span>
+          </div>
+        </a>
+      {% endfor %}
+    </section>
+  {% else %}
+    <div class="empty-state empty-state--large">
+      <span class="empty-state__mark" aria-hidden="true">＋</span>
+      <h2>No projects yet</h2>
+      <p>Create one with the CLI, then refresh this page:</p>
+      <code>agentboard create-project KEY "Project name" https://github.com/owner/repository</code>
+    </div>
+  {% endif %}
+{% endblock %}

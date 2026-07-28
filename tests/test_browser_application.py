@@ -464,9 +464,11 @@ async def test_duplicate_project_key_rolls_back_without_an_audit_event() -> None
         ({"name": ""}, "Project name"),
         ({"repository_url": "\n"}, "Repository URL"),
         ({"default_branch": "\t"}, "Default branch"),
+        ({"key": "A/B"}, "letters, numbers, hyphens, and underscores"),
+        ({"key": "A" * 65}, "at most 64 characters"),
     ],
 )
-async def test_create_project_rejects_blank_required_text(
+async def test_create_project_rejects_invalid_required_text(
     overrides: dict[str, str],
     message: str,
 ) -> None:

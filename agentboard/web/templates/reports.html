@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "macros.html" import feature_key, empty_state %}
+{% block title %}Reports · {{ project.name }} · AgentBoard{% endblock %}
+{% block page_title %}Reports{% endblock %}
+{% block eyebrow %}{{ project.key }} · Completed work{% endblock %}
+{% block context_bar %}
+  <div class="context-bar">
+    <span class="context-pill">{{ reports|length }} completed sprint{{ "" if reports|length == 1 else "s" }}</span>
+    <span class="context-bar__note">Preserved history from durable project records</span>
+  </div>
+{% endblock %}
+{% block content %}
+  <div class="content-header">
+    <div>
+      <p class="kicker">Project history</p>
+      <h2>Completed sprints</h2>
+      <p>Closed sprint work remains available here after leaving active views.</p>
+    </div>
+  </div>
+  {% if reports %}
+    <section class="report-list" aria-label="Completed sprints">
+      {% for report in reports %}
+        <article class="report-card">
+          <header class="report-card__header">
+            <div>
+              <p class="kicker">Sprint {{ report.sprint.number }}</p>
+              <h3>{{ report.sprint.name }}</h3>
+              {% if report.sprint.goal %}<p>{{ report.sprint.goal }}</p>{% endif %}
+            </div>
+            <div class="report-summary">
+              <strong>{{ report.features|length }}</strong>
+              <span>completed</span>
+            </div>
+          </header>
+          <div class="report-features">
+            {% for feature in report.features %}
+              <a href="/projects/{{ project.key|urlencode }}/features/{{ feature.number }}">
+                <span class="feature-key">{{ feature_key(project, feature) }}</span>
+                <strong>{{ feature.title }}</strong>
+                <span>{{ feature.owner|default("Unassigned", true) }}</span>
+                <span>{{ feature.estimate if feature.estimate is not none else "—" }} pts</span>
+                <span>{{ feature.completed_at.strftime("%b %-d, %Y") if feature.completed_at else "Completion time unavailable" }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        </article>
+      {% endfor %}
+    </section>
+  {% else %}
+    {{ empty_state("No completed sprints", "Close an active sprint to preserve its completed work in Reports.") }}
+  {% endif %}
+{% endblock %}

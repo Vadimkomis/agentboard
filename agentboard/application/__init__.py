@@ -10,6 +10,17 @@ from agentboard.application.sprints import (
     ReorderSprintMembership,
     StartSprint,
 )
+from agentboard.application.views import (
+    GetProjectFeature,
+    GetProjectWorkspace,
+    ListProjectApprovals,
+    ListProjectReports,
+    PendingApproval,
+    ProjectFeature,
+    ProjectReport,
+    ProjectWorkspace,
+    presented_engineering_state,
+)
 
 __all__ = [
     "AddFeatureToSprint",
@@ -17,9 +28,18 @@ __all__ = [
     "CreatePlannedSprint",
     "CreateProject",
     "GetActiveSprint",
+    "GetProjectFeature",
     "GetProject",
+    "GetProjectWorkspace",
     "ListProjectBacklog",
+    "ListProjectApprovals",
+    "ListProjectReports",
     "ListProjects",
+    "PendingApproval",
+    "ProjectFeature",
+    "ProjectReport",
+    "ProjectWorkspace",
+    "presented_engineering_state",
     "ReorderProjectBacklog",
     "ReorderSprintMembership",
     "StartSprint",

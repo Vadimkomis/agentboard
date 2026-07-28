@@ -1,0 +1,105 @@
+{% from "macros.html" import icon %}
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0b0e13">
+  <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false}'>
+  <title>{% block title %}AgentBoard{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  {% block body %}
+    <div class="app-shell" data-app-shell>
+      <div class="mobile-scrim" data-nav-close></div>
+      <aside class="sidebar" id="primary-navigation" aria-label="Primary navigation">
+        <div class="sidebar__header">
+          <a class="brand" href="/projects" aria-label="AgentBoard projects">
+            <span class="brand__mark" aria-hidden="true">AB</span>
+            <span>AgentBoard</span>
+          </a>
+          <button class="icon-button mobile-only" type="button" data-nav-close aria-label="Close navigation">
+            {{ icon("close") }}
+          </button>
+        </div>
+
+        {% if project %}
+          <div class="project-context">
+            <span class="project-context__avatar">{{ project.key[:2]|upper }}</span>
+            <span>
+              <strong>{{ project.name }}</strong>
+              <small>{{ project.key }}</small>
+            </span>
+          </div>
+
+          <nav class="primary-nav">
+            <p class="nav-label">Workspace</p>
+            <a href="/projects/{{ project.key|urlencode }}/backlog" {% if active_page == "backlog" %}aria-current="page"{% endif %}>
+              {{ icon("backlog") }}<span>Backlog</span>
+            </a>
+            <a href="/projects/{{ project.key|urlencode }}/board" {% if active_page == "board" %}aria-current="page"{% endif %}>
+              {{ icon("board") }}<span>Board</span>
+            </a>
+            <a href="/projects/{{ project.key|urlencode }}/approvals" {% if active_page == "approvals" %}aria-current="page"{% endif %}>
+              {{ icon("approvals") }}<span>Approvals</span>
+              {% if approval_count %}<span class="nav-count">{{ approval_count }}</span>{% endif %}
+            </a>
+            <a href="/projects/{{ project.key|urlencode }}/reports" {% if active_page == "reports" %}aria-current="page"{% endif %}>
+              {{ icon("reports") }}<span>Reports</span>
+            </a>
+          </nav>
+        {% endif %}
+
+        <div class="sidebar__footer">
+          <a class="all-projects-link" href="/projects">
+            {{ icon("projects") }}<span>All projects</span>
+          </a>
+          {% if csrf_token %}
+            <form action="/logout" method="post" hx-boost="false">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button class="all-projects-link sidebar-action" type="submit">
+                {{ icon("logout") }}<span>Sign out</span>
+              </button>
+            </form>
+          {% endif %}
+          <div class="system-health">
+            <span class="health-dot" aria-hidden="true"></span>
+            <span><strong>Local workspace</strong><small>SQLite connected</small></span>
+          </div>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <button class="icon-button mobile-only" type="button" data-nav-open aria-controls="primary-navigation" aria-expanded="false" aria-label="Open navigation">
+            {{ icon("menu") }}
+          </button>
+          <div class="topbar__title">
+            {% block eyebrow %}{% if project %}{{ project.key }} workspace{% else %}Private workspace{% endif %}{% endblock %}
+            <h1>{% block page_title %}AgentBoard{% endblock %}</h1>
+          </div>
+          <div class="topbar__actions">
+            {% block top_actions %}{% endblock %}
+            <button class="icon-button" type="button" data-theme-toggle="true" aria-label="Switch color theme" title="Switch color theme">
+              {{ icon("sun") }}
+            </button>
+          </div>
+        </header>
+
+        {% block context_bar %}{% endblock %}
+        <main class="main-content" id="main-content" tabindex="-1">
+          {% if flash %}
+            <div class="flash flash--{{ flash.kind|default('info') }}" role="status">{{ flash.message }}</div>
+          {% endif %}
+          {% block content %}{% endblock %}
+        </main>
+      </div>
+    </div>
+  {% endblock %}
+  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

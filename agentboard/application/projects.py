@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from agentboard.application._support import Clock, persisted_id, require_text, utc_now
 from agentboard.application.ports import UnitOfWorkFactory
 from agentboard.domain.entities import AuditEvent, Project
-from agentboard.domain.errors import DuplicateProjectKeyError, ProjectNotFoundError
+from agentboard.domain.errors import (
+    DuplicateProjectKeyError,
+    InvalidInputError,
+    ProjectNotFoundError,
+)
+
+_PROJECT_KEY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 
 
 class CreateProject:
@@ -59,11 +66,22 @@ def _validate_project(
     key: str, name: str, repository_url: str, default_branch: str
 ) -> tuple[str, ...]:
     return (
-        require_text(key, "Project key"),
+        _validate_project_key(key),
         require_text(name, "Project name"),
         require_text(repository_url, "Repository URL"),
         require_text(default_branch, "Default branch"),
     )
+
+
+def _validate_project_key(value: str) -> str:
+    key = require_text(value, "Project key")
+    if len(key) > 64:
+        raise InvalidInputError("Project key must contain at most 64 characters.")
+    if _PROJECT_KEY_PATTERN.fullmatch(key) is None:
+        raise InvalidInputError(
+            "Project key may contain only letters, numbers, hyphens, and underscores."
+        )
+    return key
 
 
 def _new_project(

@@ -1,13 +1,24 @@
 # AgentBoard
 
-**Story-driven multi-agent development TUI** — write a PRD in your terminal, let AI agents handle all engineering and GTM work.
+**Local agent-development workspace** — use the established terminal workflow
+for Story execution and an owner-authenticated browser workspace for durable
+Project, Feature, backlog, Sprint, approval-attention, and report state.
 
-> **Current and next version:** The code and usage instructions below describe
-> the current Textual TUI. The approved browser-based v0 direction is documented
-> in [the product brief](docs/product-brief.md),
-> [technical design](docs/architecture-design.md), and
-> [acceptance evals](docs/acceptance-evals.md). Its implementation is the next
-> development phase.
+AgentBoard currently has two local interfaces:
+
+- The legacy Textual TUI supports PRD refinement, agent execution, testing, and
+  shipping.
+- The browser application provides Projects, a ranked future backlog, Current
+  Sprint, a five-column engineering board with a separate Done section, Feature
+  detail, Approvals, and completed-Sprint Reports. It renders the durable state
+  already stored in SQLite.
+
+The browser does not yet derive engineering state from GitHub, synchronize pull
+requests, run independent validation, or deliver notifications. Those approved
+integrations remain separate future slices in
+[the product brief](docs/product-brief.md),
+[technical design](docs/architecture-design.md), and
+[acceptance evals](docs/acceptance-evals.md).
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -24,7 +35,7 @@
 └──────────────┴───────────────┴─────────────┴────────────────┘
 ```
 
-## How it works
+## Legacy TUI workflow
 
 1. **Write a PRD** — fill in Problem, Solution, Scope, Acceptance Criteria, and GTM
 2. **Refine with PM Agent** — conversational Q&A that sharpens scope and ensures GTM is solid
@@ -44,7 +55,9 @@ Or with pip:
 pip install agentboard
 ```
 
-**Requirements:** `claude` CLI or `codex` CLI must be in your PATH. No API keys needed — uses your existing subscription.
+Python 3.11 or newer is required. The browser application does not require an
+LLM CLI. Legacy agent execution requires `claude` or `codex` in your `PATH`; it
+uses the corresponding existing subscription and does not require an API key.
 
 ```bash
 # Install Claude CLI
@@ -54,7 +67,84 @@ npm install -g @anthropic-ai/claude-code
 npm install -g @openai/codex
 ```
 
-## Quick Start
+## Browser quick start
+
+The browser binds to loopback by default and requires one owner password. These
+commands create a Project in an explicit SQLite database and start the app:
+
+```bash
+export AGENTBOARD_DB_PATH="$PWD/agentboard-browser.db"
+
+agentboard create-project \
+  AB \
+  "AgentBoard" \
+  https://github.com/owner/repository \
+  --db "$AGENTBOARD_DB_PATH"
+
+# Enter and confirm the password, then copy the printed hash.
+agentboard hash-password
+export AGENTBOARD_OWNER_PASSWORD_HASH='paste-the-printed-hash-here'
+
+export AGENTBOARD_SESSION_SECRET="$(
+  python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
+)"
+
+agentboard web --db "$AGENTBOARD_DB_PATH"
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000), sign in with the password
+used by `agentboard hash-password`, and select the Project.
+
+The current CLI creates Projects; populated Feature and Sprint states are
+created through the application layer. The automated browser tests seed
+temporary databases with those records so every view and backlog-reorder path
+can be exercised locally.
+
+Direct non-loopback binding is intentionally rejected. To use a browser on
+another machine, keep AgentBoard bound to loopback and use an SSH tunnel or a
+trusted private HTTPS proxy. For example, from the browser machine:
+
+```bash
+ssh -L 8000:127.0.0.1:8000 user@agentboard-host
+```
+
+Use `--secure-cookies` only when the browser reaches AgentBoard through HTTPS.
+Public internet hosting is outside browser v0.
+
+## Test the browser behavior locally
+
+From a source checkout:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -e ".[dev]"
+
+# Full Python suite with the repository's 100% coverage requirement.
+python3 -m pytest
+
+# Dependency-free browser JavaScript tests.
+npm test
+```
+
+The focused browser suite is:
+
+```bash
+python3 -m pytest \
+  tests/test_browser_views.py \
+  tests/test_browser_web.py \
+  tests/test_browser_web_edges.py \
+  tests/test_web_security.py \
+  tests/test_browser_cli.py
+```
+
+It verifies owner authentication, project isolation, exact page content,
+security headers and CSRF, five ordered Board columns plus Done, Feature
+details, non-actionable approval attention when an immutable revision is
+unavailable, completed-Sprint Reports, durable/idempotent backlog reordering,
+stale-version conflicts, and empty/error states.
+
+## Legacy TUI quick start
 
 ```bash
 # Create default config
@@ -64,7 +154,7 @@ agentboard init
 agentboard start
 ```
 
-## Configuration
+## Legacy TUI configuration
 
 Config lives at `~/.agentboard/config.yml` (never committed):
 
@@ -85,7 +175,7 @@ heartbeat_interval_minutes: 30
 archive_after_days: 7
 ```
 
-## Keyboard Shortcuts
+## Legacy TUI keyboard shortcuts
 
 | Key | Action |
 |-----|--------|
@@ -132,9 +222,11 @@ Point to your custom agents via `agent_config_path` in config.
 ## $0 Operating Cost
 
 AgentBoard runs entirely locally:
-- SQLite database (`~/.agentboard/agentboard.db`)
+
+- SQLite database (the platform data-directory default or an explicit `--db`)
+- One loopback-only application process while the browser interface is running
 - Agent work runs through `claude` or `codex` CLI (your existing subscription)
-- No servers, no Redis, no hosted services
+- No hosted application service, Redis, queue, or frontend build service
 - API costs only for actual agent work
 
 ## Inspiration

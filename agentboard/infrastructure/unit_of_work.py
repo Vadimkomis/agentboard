@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from agentboard.infrastructure.conflicts import raise_write_conflict
 from agentboard.infrastructure.repositories import (
     SqlAlchemyAuditEventRepository,
+    SqlAlchemyCommandReceiptRepository,
     SqlAlchemyFeatureRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemySprintRepository,
@@ -23,6 +24,7 @@ class SqlAlchemyUnitOfWork:
     features: SqlAlchemyFeatureRepository
     sprints: SqlAlchemySprintRepository
     audit_events: SqlAlchemyAuditEventRepository
+    command_receipts: SqlAlchemyCommandReceiptRepository
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -36,6 +38,7 @@ class SqlAlchemyUnitOfWork:
         self.features = SqlAlchemyFeatureRepository(self._session)
         self.sprints = SqlAlchemySprintRepository(self._session)
         self.audit_events = SqlAlchemyAuditEventRepository(self._session)
+        self.command_receipts = SqlAlchemyCommandReceiptRepository(self._session)
         return self
 
     async def __aexit__(

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 
 from sqlalchemy import event
 from sqlalchemy.engine import URL
@@ -16,10 +16,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from agentboard.application.ports import UnitOfWork
 from agentboard.infrastructure.paths import resolve_database_path
-
-if TYPE_CHECKING:
-    from agentboard.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
 
 DEFAULT_BUSY_TIMEOUT_MS = 5_000
 
@@ -56,11 +54,11 @@ class Database:
                 await session.rollback()
                 raise
 
-    def unit_of_work(self) -> SqlAlchemyUnitOfWork:
+    def unit_of_work(self) -> UnitOfWork:
         """Create a fresh transaction boundary for one application use case."""
         from agentboard.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
 
-        return SqlAlchemyUnitOfWork(self.session_factory)
+        return cast(UnitOfWork, SqlAlchemyUnitOfWork(self.session_factory))
 
     async def dispose(self) -> None:
         """Release all pooled SQLite connections."""

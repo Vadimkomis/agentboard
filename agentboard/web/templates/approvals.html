@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% from "macros.html" import feature_key, priority_badge, empty_state, icon %}
+{% block title %}Approvals · {{ project.name }} · AgentBoard{% endblock %}
+{% block page_title %}Approvals{% endblock %}
+{% block eyebrow %}{{ project.key }} · Owner decisions{% endblock %}
+{% block context_bar %}
+  <div class="context-bar">
+    <span class="context-pill"><i class="status-dot status-dot--attention"></i>{{ approvals|length }} attention item{{ "" if approvals|length == 1 else "s" }}</span>
+    <span class="context-bar__note">Approvals are bound to exact revisions</span>
+  </div>
+{% endblock %}
+{% block content %}
+  <div class="content-header">
+    <div>
+      <p class="kicker">Human gates</p>
+      <h2>Potential decisions awaiting immutable evidence</h2>
+      <p>Design and pull-request attention stays separate and never implies that an action is available or consent was given.</p>
+    </div>
+  </div>
+  {% if approvals %}
+    <section class="approval-list" aria-label="Pending approvals">
+      {% for approval in approvals %}
+        <article class="approval-card">
+          <div class="approval-card__icon" aria-hidden="true">
+            {{ icon("approvals") }}
+          </div>
+          <div class="approval-card__body">
+            <div class="approval-card__heading">
+              <span class="kicker">{{ "Design approval" if approval.kind == "design" else "Pull request approval" }}</span>
+              {{ priority_badge(approval.feature.priority) }}
+            </div>
+            <h3><a href="/projects/{{ project.key|urlencode }}/features/{{ approval.feature.number }}">{{ approval.feature.title }}</a></h3>
+            <p><span class="feature-key">{{ feature_key(project, approval.feature) }}</span> · {{ approval.feature.owner|default("Unassigned", true) }}</p>
+            {% if approval.subject_revision %}
+              <div class="revision-row"><span>Exact revision</span><code>{{ approval.subject_revision }}</code></div>
+            {% else %}
+              <div class="unavailable-note">
+                <strong>Exact revision unavailable</strong>
+                <span>This item is visible for attention, but cannot be approved until its immutable revision is recorded.</span>
+              </div>
+            {% endif %}
+          </div>
+          <div class="approval-card__action">
+            {% if approval.actionable %}
+              <a class="button button--primary" href="/projects/{{ project.key|urlencode }}/features/{{ approval.feature.number }}">Review</a>
+            {% else %}
+              <button class="button" type="button" disabled>Not actionable</button>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </section>
+  {% else %}
+    {{ empty_state("You're all caught up", "Design or pull-request decisions that need the owner will appear here.") }}
+  {% endif %}
+{% endblock %}

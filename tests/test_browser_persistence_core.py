@@ -119,7 +119,7 @@ def test_alembic_roundtrip_preserves_legacy_tables(tmp_path: Path) -> None:
         "stories",
     }.issubset(tables)
     assert len(triggers) == 7
-    assert version == ("0001_browser_domain",)
+    assert version == ("0002_browser_ui_security",)
 
     command.check(migration_runner._migration_config(database_path))
     downgrade_database(database_path)
@@ -130,6 +130,29 @@ def test_alembic_roundtrip_preserves_legacy_tables(tmp_path: Path) -> None:
     assert "stories" in tables_after
     assert "projects" not in tables_after
     assert legacy == ("legacy",)
+
+
+def test_browser_upgrade_rejects_legacy_projects_with_url_unsafe_keys(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "unsafe-project-key.db"
+    upgrade_database(database_path, "0001_browser_domain")
+    with closing(sqlite3.connect(database_path)) as connection:
+        connection.execute(
+            """
+            INSERT INTO projects ("key", name, repository_url, default_branch)
+            VALUES ('A/B', 'Unsafe', 'https://github.com/example/unsafe', 'main')
+            """
+        )
+        connection.commit()
+
+    with pytest.raises(RuntimeError, match=r"Project 1 has URL-unsafe key 'A/B'"):
+        upgrade_database(database_path)
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        version = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+
+    assert version == ("0001_browser_domain",)
 
 
 def test_alembic_offline_upgrade_renders_foundation_sql(

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "macros.html" import feature_key, feature_meta, state_label, stage_label %}
+{% set feature = detail.feature %}
+{% block title %}{{ feature_key(project, feature)|trim }} · AgentBoard{% endblock %}
+{% block page_title %}{{ feature_key(project, feature) }}{% endblock %}
+{% block eyebrow %}<a class="breadcrumb" href="/projects/{{ project.key|urlencode }}/backlog">Backlog</a> / Feature detail{% endblock %}
+{% block top_actions %}
+  <span class="detail-state">{{ state_label(presented_engineering_state(feature, in_active_sprint=active_sprint_member))|trim }}</span>
+{% endblock %}
+{% block content %}
+  <div class="detail-layout">
+    <article class="detail-main">
+      <header class="detail-hero">
+        <p class="kicker">{{ stage_label(feature.planning_stage) }}</p>
+        <h2>{{ feature.title }}</h2>
+        <p class="detail-description">{{ feature.description }}</p>
+      </header>
+
+      <section class="detail-section" aria-labelledby="history-heading">
+        <div class="section-heading section-heading--compact">
+          <div>
+            <p class="kicker">Audit trail</p>
+            <h2 id="history-heading">Recent history</h2>
+          </div>
+        </div>
+        {% if detail.history %}
+          <ol class="timeline">
+            {% for event in detail.history %}
+              <li>
+                <span class="timeline__dot" aria-hidden="true"></span>
+                <div>
+                  <strong>{{ event.event_type|replace(".", " ")|replace("_", " ")|title }}</strong>
+                  <time datetime="{{ event.created_at.isoformat() }}">{{ event.created_at.strftime("%b %-d, %Y · %H:%M") }}</time>
+                  {% if event.payload %}<p>{{ event.payload }}</p>{% endif %}
+                </div>
+              </li>
+            {% endfor %}
+          </ol>
+        {% else %}
+          <p class="muted-copy">No durable history has been recorded.</p>
+        {% endif %}
+      </section>
+    </article>
+
+    <aside class="detail-sidebar" aria-label="Feature facts">
+      <section class="fact-card">
+        <h2>Feature facts</h2>
+        {{ feature_meta(project, feature, active_sprint_member=active_sprint_member) }}
+      </section>
+      <section class="fact-card">
+        <h2>Sprint</h2>
+        {% if detail.sprint %}
+          <strong>{{ detail.sprint.name }}</strong>
+          <p>{{ detail.sprint.goal|default("No sprint goal recorded.", true) }}</p>
+        {% else %}
+          <p>Not in a sprint.</p>
+        {% endif %}
+      </section>
+      <section class="fact-card">
+        <h2>Design approval</h2>
+        {% if feature.approved_design_hash %}
+          <span class="evidence evidence--positive">Approved revision</span>
+          <code>{{ feature.approved_design_hash }}</code>
+        {% else %}
+          <span class="evidence evidence--attention">Approval required</span>
+          <p>No exact design revision is approved.</p>
+        {% endif %}
+      </section>
+      <section class="fact-card">
+        <h2>Pull request</h2>
+        <p class="muted-copy">Pull-request facts are unavailable until GitHub synchronization is configured.</p>
+      </section>
+    </aside>
+  </div>
+{% endblock %}

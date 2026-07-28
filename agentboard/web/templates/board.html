@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "macros.html" import board_card, empty_state %}
+{% block title %}Board · {{ project.name }} · AgentBoard{% endblock %}
+{% block page_title %}Board{% endblock %}
+{% block eyebrow %}{{ project.key }} · Engineering{% endblock %}
+{% block context_bar %}
+  <div class="context-bar">
+    <span class="context-pill"><i class="status-dot"></i>{% if active_sprint %}{{ active_sprint.sprint.name }}{% else %}No active sprint{% endif %}</span>
+    {% if active_sprint and active_sprint.sprint.goal %}
+      <span class="context-bar__note">{{ active_sprint.sprint.goal }}</span>
+    {% endif %}
+    <span class="context-bar__note context-bar__note--right">Initial Ready derives from active-Sprint facts; later states use durable Feature records</span>
+  </div>
+{% endblock %}
+{% block content %}
+  {% set ordered_columns = [
+    ("ready_for_engineering", "Ready for Engineering"),
+    ("working", "Working"),
+    ("in_review", "In Review"),
+    ("human_review", "Human Review"),
+    ("ready_to_merge", "Ready to Merge")
+  ] %}
+  {% set columns = board_columns|default({}, true) %}
+  <section class="board-shell" aria-label="Current sprint engineering board">
+    <div class="board-grid">
+      {% for state, label in ordered_columns %}
+        {% set column_features = columns.get(state, []) if columns.get is defined else [] %}
+        <section class="board-column board-column--{{ state }}" data-board-column="{{ state }}" aria-labelledby="column-{{ state }}">
+          <header class="board-column__header">
+            <span class="state-dot"></span>
+            <h2 id="column-{{ state }}">{{ label }}</h2>
+            <span>{{ column_features|length }}</span>
+          </header>
+          <div class="board-column__cards">
+            {% for feature in column_features %}
+              {{ board_card(project, feature) }}
+            {% else %}
+              <p class="column-empty">No work in this state</p>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="completed-section" data-completed-section="true" aria-labelledby="done-heading">
+    <div class="section-heading section-heading--compact">
+      <div>
+        <p class="kicker">Completed this sprint</p>
+        <h2 id="done-heading">Done</h2>
+      </div>
+      <span class="section-count">{{ done_features|default([], true)|length }}</span>
+    </div>
+    {% if done_features %}
+      <div class="done-grid">
+        {% for feature in done_features %}
+          {{ board_card(project, feature) }}
+        {% endfor %}
+      </div>
+    {% else %}
+      {{ empty_state("Nothing completed yet", "Merged current-sprint work will appear here without becoming a sixth board column.") }}
+    {% endif %}
+  </section>
+{% endblock %}

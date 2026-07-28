@@ -2,7 +2,9 @@
 
 This file is the single source of truth for AgentBoard features. The legacy
 Story/Ticket terminal application remains supported while the approved browser
-v0 is delivered in separate, serial feature slices.
+v0 is delivered in separate, serial feature slices. The authenticated browser
+workspace slice is complete; its GitHub, validator, worker, and notification
+integrations remain planned.
 
 Status values are `planned`, `in-progress`, `completed`, and `deprecated`.
 
@@ -304,9 +306,9 @@ Feature: Legacy infrastructure and distribution
     And the status is "completed"
 
   Scenario: Continuous integration
-    Given a supported Python change is pushed
+    Given a supported Python or browser JavaScript change is pushed
     When GitHub Actions runs CI
-    Then Ruff and the Python test suite run on supported Python versions
+    Then Ruff and the Python test suite run on supported Python versions and the browser JavaScript tests run on Node
     And the status is "completed"
 
   Scenario: Automated package release
@@ -391,13 +393,41 @@ Feature: Browser v0 derived engineering state
     Then the result follows Ready for Engineering, Working, In Review, Human Review, Ready to Merge, or Done rules
     And the status is "planned"
 
-Feature: Browser v0 backlog and board
+Feature: Browser v0 authenticated project workspace
+
+  Scenario: Owner-authenticated local browser
+    Given the owner has configured a password hash and session secret
+    When AgentBoard serves the browser application on a loopback address
+    Then unauthenticated project routes require sign-in and authenticated sessions use CSRF-protected mutations
+    And direct non-loopback binding is rejected in favor of an SSH tunnel or trusted private proxy
+    And the status is "completed"
 
   Scenario: Render project-scoped browser views
-    Given the persistence foundation and engineering-state derivation are complete
+    Given the persistence foundation contains durable Project, Feature, Sprint, and audit records
     When the owner opens a project in the browser
-    Then Backlog, Board, Feature detail, Approvals, and Reports show only the selected project's durable state
-    And the status is "planned"
+    Then Backlog, Board, Feature detail, Approvals, and Reports show only the selected Project's durable state
+    And the Board has exactly five active-work columns with completed current-Sprint Features in a separate Done section
+    And an approved active-Sprint Feature without a later recorded state is consistently presented as Ready for Engineering
+    And the status is "completed"
+
+  Scenario: Reorder the exact future backlog
+    Given the owner is viewing the current version of a Project's future backlog
+    When the owner drags a row or uses its reorder controls
+    Then only the exact future-backlog set is reordered atomically with CSRF, idempotency, and expected-version protection
+    And stale, conflicting, or invalid submissions preserve the current durable order
+    And the status is "completed"
+
+  Scenario: Show unavailable integration evidence honestly
+    Given GitHub synchronization and immutable pull-request revision storage are not implemented
+    When the owner opens Feature detail or Approvals
+    Then AgentBoard labels pull-request evidence and revision-bound approval actions unavailable instead of inventing them
+    And the status is "completed"
+
+  Scenario: Persist accessible appearance preferences
+    Given the owner uses a supported browser
+    When the system preference supplies the initial appearance or the owner selects light or dark mode
+    Then the responsive interface remains keyboard operable and preserves the appearance preference locally
+    And the status is "completed"
 
 Feature: Browser v0 GitHub synchronization
 
