@@ -10,8 +10,12 @@ import json
 import re
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
+from typing import Any, TypeAlias, cast
 
 from agentboard.core.models import Story, StoryMessage, Ticket
+from agentboard.llm.client import LLMClient
+
+JsonObject: TypeAlias = dict[str, Any]
 
 REFINEMENT_SYSTEM_PROMPT = """\
 You are a senior product manager helping a developer refine their story (feature/product idea).
@@ -121,8 +125,8 @@ Output ONLY valid JSON:
 
 @dataclass
 class DecomposedStory:
-    engineering_tickets: list[dict]
-    marketing_ticket: dict
+    engineering_tickets: list[JsonObject]
+    marketing_ticket: JsonObject
 
 
 @dataclass
@@ -135,7 +139,7 @@ class DiffAnalysis:
 class PMAgent:
     """Conversational PM agent for story refinement and decomposition."""
 
-    def __init__(self, llm_client: object) -> None:
+    def __init__(self, llm_client: LLMClient) -> None:
         self._client = llm_client
 
     def _build_prd_summary(self, story: Story) -> str:
@@ -182,7 +186,7 @@ class PMAgent:
                 messages.append(msg.to_dict())
             messages.append({"role": "user", "content": user_message})
 
-        return self._client.stream(system, messages, on_token)  # type: ignore[return-value]
+        return self._client.stream(system, messages, on_token)
 
     async def decompose(self, story: Story) -> DecomposedStory:
         """Decompose a finalized PRD into engineering + marketing tickets."""
@@ -193,7 +197,7 @@ class PMAgent:
             "Please decompose this into engineering tickets and a marketing ticket."
         )
 
-        response = await self._client.complete(  # type: ignore[call-arg]
+        response = await self._client.complete(
             DECOMPOSITION_SYSTEM_PROMPT,
             [{"role": "user", "content": user_msg}],
         )
@@ -226,7 +230,7 @@ class PMAgent:
             f"Existing tickets:\n{ticket_summary}"
         )
 
-        response = await self._client.complete(  # type: ignore[call-arg]
+        response = await self._client.complete(
             DIFF_ANALYSIS_SYSTEM_PROMPT,
             [{"role": "user", "content": user_msg}],
         )
@@ -242,14 +246,14 @@ class PMAgent:
         self,
         story: Story,
         bug_description: str,
-    ) -> dict:
+    ) -> JsonObject:
         """Create a bug-fix ticket from a user bug report."""
         prd_summary = self._build_prd_summary(story)
         user_msg = (
             f"Story: {story.title}\n\nPRD context:\n{prd_summary}\n\nBug report:\n{bug_description}"
         )
 
-        response = await self._client.complete(  # type: ignore[call-arg]
+        response = await self._client.complete(
             BUG_TRIAGE_SYSTEM_PROMPT,
             [{"role": "user", "content": user_msg}],
         )
@@ -257,12 +261,12 @@ class PMAgent:
         return _parse_json_response(response)
 
 
-def _parse_json_response(text: str) -> dict:
+def _parse_json_response(text: str) -> JsonObject:
     """Extract and parse JSON from LLM response (handles markdown code blocks)."""
     # Try direct parse first
     text = text.strip()
     try:
-        return json.loads(text)
+        return cast(JsonObject, json.loads(text))
     except json.JSONDecodeError:
         pass
 
@@ -270,7 +274,7 @@ def _parse_json_response(text: str) -> dict:
     match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     if match:
         try:
-            return json.loads(match.group(1))
+            return cast(JsonObject, json.loads(match.group(1)))
         except json.JSONDecodeError:
             pass
 
@@ -278,7 +282,7 @@ def _parse_json_response(text: str) -> dict:
     match2 = re.search(r"\{.*\}", text, re.DOTALL)
     if match2:
         try:
-            return json.loads(match2.group(0))
+            return cast(JsonObject, json.loads(match2.group(0)))
         except json.JSONDecodeError:
             pass
 

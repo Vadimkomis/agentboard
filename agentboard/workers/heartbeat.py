@@ -12,12 +12,16 @@ import contextlib
 import json
 import logging
 import platform
+from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Any, TypeAlias
 
 from agentboard.core.db import get_session
 from agentboard.core.models import Story, StoryStatus, Ticket
 
 logger = logging.getLogger(__name__)
+
+BoardState: TypeAlias = dict[str, Any]
 
 HEARTBEAT_PROMPT = """\
 You are a pipeline health monitor for AgentBoard. Analyze the board state and return either:
@@ -46,7 +50,7 @@ class HeartbeatMonitor:
         self,
         claude_cli_path: str = "claude",
         interval_minutes: int = 30,
-        on_alert: object | None = None,  # Callable[[str], None]
+        on_alert: Callable[[str], None] | None = None,
     ) -> None:
         self.claude_cli_path = claude_cli_path
         self.interval_seconds = interval_minutes * 60
@@ -54,7 +58,7 @@ class HeartbeatMonitor:
         self.last_check: datetime | None = None
         self.last_status: str = "Not checked yet"
         self._running = False
-        self._task: asyncio.Task | None = None
+        self._task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
         """Start the heartbeat loop as a background asyncio task."""
@@ -88,7 +92,7 @@ class HeartbeatMonitor:
             except Exception as e:
                 logger.warning("Heartbeat check failed: %s", e)
 
-    async def _load_board_state(self) -> dict:
+    async def _load_board_state(self) -> BoardState:
         """Load current board state from DB for the heartbeat prompt."""
         async with get_session() as session:
             from sqlalchemy import select
@@ -98,7 +102,7 @@ class HeartbeatMonitor:
             stories = result.scalars().all()
 
             now = datetime.now(UTC)
-            state: dict = {"stories": [], "timestamp": now.isoformat()}
+            state: BoardState = {"stories": [], "timestamp": now.isoformat()}
 
             for story in stories:
                 if story.status in (StoryStatus.done,):
@@ -142,7 +146,7 @@ class HeartbeatMonitor:
 
             return state
 
-    async def _invoke_claude(self, board_state: dict) -> str:
+    async def _invoke_claude(self, board_state: BoardState) -> str:
         """Invoke claude CLI with board state, returning the response."""
         prompt = HEARTBEAT_PROMPT.format(board_state=json.dumps(board_state, indent=2))
         try:
@@ -164,7 +168,7 @@ class HeartbeatMonitor:
             # Fall back to local check without LLM
             return self._local_check(board_state)
 
-    def _local_check(self, board_state: dict) -> str:
+    def _local_check(self, board_state: BoardState) -> str:
         """Simple local heuristic check without LLM — used as fallback."""
         stories = board_state.get("stories", [])
         active = [s for s in stories if s["status"] in ("drafting", "refining", "engineering")]
@@ -189,7 +193,7 @@ class HeartbeatMonitor:
     async def _alert(self, message: str) -> None:
         """Send alert to TUI + optional desktop notification."""
         if self.on_alert and callable(self.on_alert):
-            self.on_alert(message)  # type: ignore[call-arg]
+            self.on_alert(message)
 
         # Desktop notification (best-effort)
         await _desktop_notify("AgentBoard", message)

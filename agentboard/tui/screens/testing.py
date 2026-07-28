@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any, cast
 
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -23,7 +24,7 @@ from agentboard.tui.widgets.chat_panel import ChatPanel
 from agentboard.tui.widgets.ticket_grid import TicketGrid
 
 
-class TestingScreen(Screen):
+class TestingScreen(Screen[None]):
     """Bug report interface for stories in TESTING.
 
     Lets user describe bugs via chat with PM agent.
@@ -71,7 +72,7 @@ class TestingScreen(Screen):
     """
 
     def __init__(self, story: Story, **kwargs: object) -> None:
-        super().__init__(**kwargs)
+        super().__init__(**cast(dict[str, Any], kwargs))
         self._story = story
         self._bug_chat: ChatPanel | None = None
 

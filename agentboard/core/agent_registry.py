@@ -8,9 +8,11 @@ Looks in (in order):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from importlib import import_module
 from pathlib import Path
+from typing import Any
 
-import yaml
+yaml: Any = import_module("yaml")
 
 
 @dataclass
@@ -23,7 +25,7 @@ class AgentDefinition:
     system_prompt: str = ""
 
     @classmethod
-    def from_dict(cls, data: dict) -> AgentDefinition:
+    def from_dict(cls, data: dict[str, Any]) -> AgentDefinition:
         return cls(
             name=data["name"],
             description=data.get("description", ""),

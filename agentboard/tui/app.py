@@ -8,14 +8,22 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from textual.app import App
 
 from agentboard.core.config import Config, get_config
 from agentboard.core.db import close_db, init_db
+from agentboard.llm.client import LLMClient
+
+if TYPE_CHECKING:
+    from agentboard.agents.growth_agent import GrowthAgent
+    from agentboard.agents.pm_agent import PMAgent
+    from agentboard.workers.heartbeat import HeartbeatMonitor
+    from agentboard.workers.orchestrator import Orchestrator
 
 
-class AgentBoardApp(App):
+class AgentBoardApp(App[None]):
     """Root Textual application for AgentBoard."""
 
     TITLE = "AgentBoard"
@@ -28,10 +36,10 @@ class AgentBoardApp(App):
     def __init__(self, config: Config | None = None, **kwargs: object) -> None:
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._config = config or get_config()
-        self.pm_agent: object | None = None
-        self.growth_agent: object | None = None
-        self.orchestrator: object | None = None
-        self._heartbeat: object | None = None
+        self.pm_agent: PMAgent | None = None
+        self.growth_agent: GrowthAgent | None = None
+        self.orchestrator: Orchestrator | None = None
+        self._heartbeat: HeartbeatMonitor | None = None
 
     async def on_mount(self) -> None:
         """Initialize all services and push the board screen."""
@@ -64,14 +72,14 @@ class AgentBoardApp(App):
             interval_minutes=self._config.heartbeat_interval_minutes,
             on_alert=self._on_heartbeat_alert,
         )
-        await self._heartbeat.start()  # type: ignore[union-attr]
+        await self._heartbeat.start()
 
         # Push board screen
         from agentboard.tui.screens.board import BoardScreen
 
         await self.push_screen(BoardScreen())
 
-    def _build_llm_client(self) -> object:
+    def _build_llm_client(self) -> LLMClient:
         """Build the appropriate LLM client based on config."""
         provider = self._config.default_provider
         if provider == "claude":
@@ -140,7 +148,7 @@ class AgentBoardApp(App):
         async def _do_check() -> None:
             if self._heartbeat is None:
                 return
-            result = await self._heartbeat.check_now()  # type: ignore[union-attr]
+            result = await self._heartbeat.check_now()
             try:
                 from agentboard.tui.widgets.heartbeat_bar import HeartbeatBar
 
@@ -166,5 +174,5 @@ class AgentBoardApp(App):
 
     async def on_unmount(self) -> None:
         if self._heartbeat:
-            await self._heartbeat.stop()  # type: ignore[union-attr]
+            await self._heartbeat.stop()
         await close_db()

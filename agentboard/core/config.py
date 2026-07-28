@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import shutil
 from dataclasses import dataclass, field
+from importlib import import_module
 from pathlib import Path
+from typing import Any
 
-import yaml
+yaml: Any = import_module("yaml")
 
 CONFIG_DIR = Path.home() / ".agentboard"
 CONFIG_PATH = CONFIG_DIR / "config.yml"
@@ -43,7 +45,7 @@ class Config:
     db_path: str | None = None
 
     # Resolved at load time — not stored in YAML
-    _agent_config_dir: Path = field(init=False, repr=False, default=None)  # type: ignore[assignment]
+    _agent_config_dir: Path = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.agent_config_path:
@@ -88,7 +90,7 @@ def load_config(config_path: Path | None = None) -> Config:
         data = yaml.safe_load(f) or {}
 
     # Filter to known fields only
-    known = set(Config.__dataclass_fields__)  # type: ignore[attr-defined]
+    known = set(Config.__dataclass_fields__)
     filtered = {k: v for k, v in data.items() if k in known}
     return Config(**filtered)
 

@@ -20,7 +20,7 @@ class LLMClient(Protocol):
         """Run a blocking completion and return the full response text."""
         ...
 
-    async def stream(
+    def stream(
         self,
         system: str,
         messages: list[dict[str, str]],
