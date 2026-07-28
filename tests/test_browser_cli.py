@@ -5,14 +5,17 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-import httpx
 import pytest
 from typer.testing import CliRunner
 
-from agentboard.application import GetProjectWorkspace, ListProjects
+from agentboard.application import (
+    GetProjectWorkspace,
+    ListProjectApprovals,
+    ListProjectReports,
+    ListProjects,
+)
 from agentboard.cli import app
 from agentboard.infrastructure.database import Database
-from agentboard.web import WebSettings, create_app
 
 
 def test_create_project_command_makes_a_project_visible_to_browser_queries(
@@ -65,42 +68,39 @@ def test_seed_demo_command_populates_every_browser_view(tmp_path: Path) -> None:
     path = tmp_path / "browser.db"
     result = CliRunner().invoke(app, ["seed-demo", "--db", str(path)])
 
-    async def render_views() -> tuple[str, ...]:
-        settings = WebSettings(
-            database_path=path,
-            session_secret="test-session-secret-that-is-long-enough-for-hmac",
-            allowed_hosts=("testserver",),
-        )
-        browser = create_app(settings)
-        async with browser.router.lifespan_context(browser):
-            transport = httpx.ASGITransport(app=browser)
-            async with httpx.AsyncClient(
-                transport=transport,
-                base_url="http://testserver",
-            ) as client:
-                responses = [
-                    await client.get("/projects/DEMO/backlog"),
-                    await client.get("/projects/DEMO/board"),
-                    await client.get("/projects/DEMO/features/2"),
-                    await client.get("/projects/DEMO/approvals"),
-                    await client.get("/projects/DEMO/reports"),
-                ]
-                assert all(response.status_code == 200 for response in responses)
-                return tuple(response.text for response in responses)
+    async def inspect_demo() -> tuple[list[str], list[str], list[str], list[str]]:
+        database = Database(path)
+        try:
+            workspace = await GetProjectWorkspace(database.unit_of_work)(project_key="DEMO")
+            approvals = await ListProjectApprovals(database.unit_of_work)(project_key="DEMO")
+            reports = await ListProjectReports(database.unit_of_work)(project_key="DEMO")
+            active_titles = (
+                [feature.title for feature in workspace.active_sprint.features]
+                if workspace.active_sprint
+                else []
+            )
+            return (
+                [feature.title for feature in workspace.future_backlog],
+                active_titles,
+                [approval.feature.title for approval in approvals],
+                [feature.title for report in reports for feature in report.features],
+            )
+        finally:
+            await database.dispose()
 
-    backlog, board, detail, approvals, reports = asyncio.run(render_views())
+    future, active, approvals, reports = asyncio.run(inspect_demo())
 
     assert result.exit_code == 0
     assert "Created DEMO (AgentBoard Demo)" in result.stdout
-    assert "Current Sprint" in backlog
-    assert "Define notification preferences" in backlog
-    assert "data-reorder-form" in backlog
-    assert board.count("data-board-column=") == 5
-    assert "Publish seeded workspace" in board
-    assert "Prepare browser workspace" in detail
-    assert "Design approval" in approvals
+    assert future == [
+        "Define notification preferences",
+        "Add team workload forecast",
+        "Document release checklist",
+    ]
+    assert "Prepare browser workspace" in active
+    assert "Publish seeded workspace" in active
+    assert "Define notification preferences" in approvals
     assert "Approve release candidate" in approvals
-    assert "Sprint 1" in reports
     assert "Ship project foundation" in reports
 
 

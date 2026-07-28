@@ -15,6 +15,7 @@ from agentboard.application import (
     CreateFeature,
     CreatePlannedSprint,
     CreateProject,
+    SeedDemoWorkspace,
     StartSprint,
 )
 from agentboard.domain.enums import EngineeringState, PlanningStage, SprintState
@@ -32,6 +33,18 @@ async def seeded_web_path(tmp_path: Path) -> Path:
     path = tmp_path / "browser-web.db"
     upgrade_database(path)
     await _seed(path)
+    return path
+
+
+@pytest.fixture
+async def seeded_demo_path(tmp_path: Path) -> Path:
+    path = tmp_path / "browser-demo.db"
+    upgrade_database(path)
+    database = Database(path)
+    try:
+        await SeedDemoWorkspace(database.unit_of_work, lambda: NOW)()
+    finally:
+        await database.dispose()
     return path
 
 
@@ -285,6 +298,43 @@ async def test_login_free_mode_replaces_an_invalid_browser_session(
 
     assert response.status_code == 200
     assert response.cookies["agentboard_session"] != "tampered"
+
+
+async def test_seeded_demo_renders_representative_data_in_every_browser_view(
+    seeded_demo_path: Path,
+) -> None:
+    settings = WebSettings(
+        database_path=seeded_demo_path,
+        session_secret="test-session-secret-that-is-long-enough-for-hmac",
+        allowed_hosts=("testserver",),
+        secure_cookies=False,
+    )
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+        ) as client:
+            backlog = await client.get("/projects/DEMO/backlog")
+            board = await client.get("/projects/DEMO/board")
+            feature = await client.get("/projects/DEMO/features/2")
+            approvals = await client.get("/projects/DEMO/approvals")
+            reports = await client.get("/projects/DEMO/reports")
+
+    assert all(
+        response.status_code == 200 for response in (backlog, board, feature, approvals, reports)
+    )
+    assert "Current Sprint" in backlog.text
+    assert "Define notification preferences" in backlog.text
+    assert "data-reorder-form" in backlog.text
+    assert board.text.count("data-board-column=") == 5
+    assert "Publish seeded workspace" in board.text
+    assert "Prepare browser workspace" in feature.text
+    assert "Design approval" in approvals.text
+    assert "Approve release candidate" in approvals.text
+    assert "Sprint 1" in reports.text
+    assert "Ship project foundation" in reports.text
 
 
 async def test_project_selector_is_deterministic_and_links_scoped_routes(
