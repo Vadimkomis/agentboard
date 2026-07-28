@@ -1,4 +1,4 @@
-"""Framework-independent security helpers for the owner-only browser UI."""
+"""Framework-independent security helpers for the local browser UI."""
 
 from __future__ import annotations
 
@@ -7,66 +7,21 @@ import binascii
 import hashlib
 import hmac
 import json
-import re
 import secrets
 import time
 from dataclasses import dataclass
-from urllib.parse import parse_qsl, unquote, urlsplit, urlunsplit
 
-_HASH_SCHEME = "pbkdf2_sha256"
-_DEFAULT_PASSWORD_ITERATIONS = 310_000
-_MIN_PASSWORD_ITERATIONS = 100_000
-_MAX_PASSWORD_ITERATIONS = 1_000_000
-_PASSWORD_SALT_BYTES = 16
-_PASSWORD_DIGEST_BYTES = 32
 _SESSION_SIGNATURE_BYTES = 32
 _DEFAULT_SESSION_TTL_SECONDS = 8 * 60 * 60
-_INVALID_PERCENT_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
-
-
-class FormDecodeError(ValueError):
-    """Raised when an URL-encoded form is unsafe or malformed."""
 
 
 @dataclass(frozen=True, slots=True)
-class SessionClaims:
-    """Signed browser-session claims."""
+class CsrfSession:
+    """Signed state used to bind CSRF tokens to one local browser."""
 
     csrf_token: str
     issued_at: int
     expires_at: int
-
-
-def hash_owner_password(
-    password: str,
-    *,
-    salt: bytes | None = None,
-    iterations: int = _DEFAULT_PASSWORD_ITERATIONS,
-) -> str:
-    """Return a versioned PBKDF2-SHA256 owner-password hash."""
-
-    _validate_password_parameters(salt, iterations)
-    resolved_salt = secrets.token_bytes(_PASSWORD_SALT_BYTES) if salt is None else salt
-    digest = _derive_password(password, resolved_salt, iterations)
-    return "$".join(
-        (
-            _HASH_SCHEME,
-            str(iterations),
-            _encode_base64url(resolved_salt),
-            _encode_base64url(digest),
-        )
-    )
-
-
-def verify_owner_password(password: str, encoded: str) -> bool:
-    """Verify an owner password without leaking digest mismatch timing."""
-
-    components = _parse_password_hash(encoded)
-    if components is None:
-        return False
-    iterations, salt, expected_digest = components
-    actual_digest = _derive_password(password, salt, iterations)
-    return _constant_time_bytes_equal(actual_digest, expected_digest)
 
 
 def generate_csrf_token() -> str:
@@ -100,8 +55,8 @@ def verify_session(
     cookie_value: str | None,
     *,
     now: int | None = None,
-) -> SessionClaims | None:
-    """Return signed session claims, or ``None`` for an invalid cookie."""
+) -> CsrfSession | None:
+    """Return signed CSRF state, or ``None`` for an invalid cookie."""
 
     secret_bytes = _validated_session_secret(secret)
     parts = cookie_value.split(".") if cookie_value else []
@@ -132,78 +87,6 @@ def verify_csrf_token(expected: str, submitted: str | None) -> bool:
     return _constant_time_text_equal(expected, submitted)
 
 
-def normalize_local_redirect(
-    value: str | None,
-    *,
-    default: str = "/projects",
-) -> str:
-    """Normalize a post-login redirect and reject external or ambiguous URLs."""
-
-    if not _is_safe_local_redirect(default):
-        raise ValueError("redirect default must be a safe local path")
-    target = value if value and _is_safe_local_redirect(value) else default
-    parts = urlsplit(target)
-    return urlunsplit(("", "", parts.path, parts.query, ""))
-
-
-def parse_urlencoded_form(
-    body: bytes,
-    *,
-    max_bytes: int = 16_384,
-    max_fields: int = 32,
-) -> dict[str, str]:
-    """Decode a small, unambiguous UTF-8 ``application/x-www-form-urlencoded`` body."""
-
-    if max_bytes <= 0 or max_fields <= 0:
-        raise ValueError("form resource limits must be positive")
-    if len(body) > max_bytes:
-        raise FormDecodeError("form body is too large")
-    try:
-        text = body.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise FormDecodeError("form body is not valid UTF-8") from error
-    if _INVALID_PERCENT_ESCAPE.search(text):
-        raise FormDecodeError("form body contains an invalid percent escape")
-    if text and text.count("&") + 1 > max_fields:
-        raise FormDecodeError("form contains too many fields")
-    pairs = _parse_form_pairs(text, max_fields)
-    return _unique_form_fields(pairs)
-
-
-def _validate_password_parameters(salt: bytes | None, iterations: int) -> None:
-    if salt is not None and len(salt) < _PASSWORD_SALT_BYTES:
-        raise ValueError("password salt must be at least 16 bytes")
-    if not _MIN_PASSWORD_ITERATIONS <= iterations <= _MAX_PASSWORD_ITERATIONS:
-        raise ValueError("password iterations must be between 100000 and 1000000")
-
-
-def _derive_password(password: str, salt: bytes, iterations: int) -> bytes:
-    return hashlib.pbkdf2_hmac(
-        "sha256",
-        password.encode("utf-8"),
-        salt,
-        iterations,
-        dklen=_PASSWORD_DIGEST_BYTES,
-    )
-
-
-def _parse_password_hash(encoded: str) -> tuple[int, bytes, bytes] | None:
-    parts = encoded.split("$")
-    if len(parts) != 4 or parts[0] != _HASH_SCHEME:
-        return None
-    try:
-        iterations = int(parts[1])
-        salt = _decode_base64url(parts[2])
-        digest = _decode_base64url(parts[3])
-    except (ValueError, binascii.Error):
-        return None
-    if not _MIN_PASSWORD_ITERATIONS <= iterations <= _MAX_PASSWORD_ITERATIONS:
-        return None
-    if len(salt) < _PASSWORD_SALT_BYTES or len(digest) != _PASSWORD_DIGEST_BYTES:
-        return None
-    return iterations, salt, digest
-
-
 def _validated_session_secret(secret: str) -> bytes:
     secret_bytes = secret.encode("utf-8")
     if len(secret_bytes) < 32:
@@ -219,7 +102,7 @@ def _session_payload(csrf_token: str, issued_at: int, expires_at: int) -> bytes:
     ).encode("utf-8")
 
 
-def _decode_session_claims(payload: bytes) -> SessionClaims | None:
+def _decode_session_claims(payload: bytes) -> CsrfSession | None:
     try:
         value: object = json.loads(payload)
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -235,44 +118,7 @@ def _decode_session_claims(payload: bytes) -> SessionClaims | None:
         return None
     if expires_at <= issued_at:
         return None
-    return SessionClaims(csrf_token, issued_at, expires_at)
-
-
-def _is_safe_local_redirect(value: str) -> bool:
-    decoded = unquote(value)
-    if not value.startswith("/") or decoded.startswith("//"):
-        return False
-    if "\\" in decoded or any(
-        ord(character) < 32 or ord(character) == 127 for character in decoded
-    ):
-        return False
-    parts = urlsplit(value)
-    return not parts.scheme and not parts.netloc and parts.path.startswith("/")
-
-
-def _parse_form_pairs(text: str, max_fields: int) -> list[tuple[str, str]]:
-    try:
-        return parse_qsl(
-            text,
-            keep_blank_values=True,
-            strict_parsing=True,
-            encoding="utf-8",
-            errors="strict",
-            max_num_fields=max_fields,
-        )
-    except UnicodeDecodeError as error:
-        raise FormDecodeError("form values are not valid UTF-8") from error
-    except ValueError as error:
-        raise FormDecodeError("form body is malformed") from error
-
-
-def _unique_form_fields(pairs: list[tuple[str, str]]) -> dict[str, str]:
-    fields: dict[str, str] = {}
-    for key, value in pairs:
-        if key in fields:
-            raise FormDecodeError(f"duplicate form field: {key}")
-        fields[key] = value
-    return fields
+    return CsrfSession(csrf_token, issued_at, expires_at)
 
 
 def _encode_base64url(value: bytes) -> str:

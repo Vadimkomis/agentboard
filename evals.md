@@ -49,8 +49,8 @@ pass/fail results; this document does not record transient statuses.
 ## Browser v0 application
 
 - Name: Login-free loopback browser boundary
-- Description: Project routes open without a password by default on supported loopback bindings, while a configured owner password enables optional authentication; signed browser sessions, session expiry, CSRF, bounded form parsing, strict cookies, host checks, and browser security headers protect mutations and the local application boundary.
-- Test mapping: `tests/test_web_security.py`, `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests/test_browser_cli.py` cover automatic local sessions, retained optional password verification and safe redirects, security primitives, and rejection of direct non-loopback serving; corresponds to acceptance eval 36.
+- Description: Project routes always open without authentication on supported loopback bindings; no password-authentication surface exists, while signed CSRF sessions, session expiry, bounded mutation-form parsing, strict cookies, host checks, and browser security headers protect mutations and the local application boundary.
+- Test mapping: `tests/test_web_security.py`, `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests/test_browser_cli.py` cover automatic CSRF sessions, absent authentication commands and routes, security primitives, and rejection of direct non-loopback serving; corresponds to acceptance eval 36.
 
 - Name: Representative local demo workspace
 - Description: One command atomically creates a dedicated DEMO Project with a completed Sprint report, an active Sprint spanning all Board states plus Done, reorderable future work, Feature history, and approval-attention examples without altering other Projects or replacing an existing DEMO Project.

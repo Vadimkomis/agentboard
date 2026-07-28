@@ -144,15 +144,6 @@ def agents(
         )
 
 
-@app.command("hash-password")
-def hash_password() -> None:
-    """Generate a hash for optional browser password protection."""
-    from agentboard.web import hash_owner_password
-
-    password = typer.prompt("Owner password", hide_input=True, confirmation_prompt=True)
-    typer.echo(hash_owner_password(password))
-
-
 @app.command("create-project")
 def create_project(
     key: Annotated[str, typer.Argument(help="Stable URL-safe project key")],
@@ -261,14 +252,6 @@ def web(
         int,
         typer.Option("--port", min=1, max=65_535),
     ] = 8000,
-    owner_password_hash: Annotated[
-        str | None,
-        typer.Option(
-            "--owner-password-hash",
-            envvar="AGENTBOARD_OWNER_PASSWORD_HASH",
-            help="Optional PBKDF2 hash that enables login",
-        ),
-    ] = None,
     session_secret: Annotated[
         str | None,
         typer.Option(
@@ -297,7 +280,6 @@ def web(
 
     settings = WebSettings(
         database_path=resolve_database_path(db),
-        owner_password_hash=owner_password_hash,
         session_secret=session_secret or secrets.token_urlsafe(32),
         allowed_hosts=("localhost", "127.0.0.1"),
         secure_cookies=secure_cookies,

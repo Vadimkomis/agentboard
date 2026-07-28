@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import secrets
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, cast
-from urllib.parse import parse_qsl, urlencode
+from urllib.parse import parse_qsl
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
@@ -41,14 +40,10 @@ from agentboard.domain.errors import (
 from agentboard.infrastructure.database import Database
 from agentboard.infrastructure.migrations import upgrade_database_async
 from agentboard.web.security import (
-    FormDecodeError,
-    SessionClaims,
+    CsrfSession,
     generate_csrf_token,
-    normalize_local_redirect,
-    parse_urlencoded_form,
     sign_session,
     verify_csrf_token,
-    verify_owner_password,
     verify_session,
 )
 from agentboard.web.settings import WebSettings
@@ -78,7 +73,7 @@ def create_app(settings: WebSettings) -> FastAPI:
         lifespan=_lifespan(settings),
     )
     app.state.web_settings = settings
-    _add_browser_session(app)
+    _add_csrf_session(app)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
     _add_security_headers(app)
     app.mount("/static", StaticFiles(directory=_WEB_ROOT / "static"), name="static")
@@ -101,18 +96,18 @@ def _lifespan(settings: WebSettings) -> Any:
     return lifespan
 
 
-def _add_browser_session(app: FastAPI) -> None:
+def _add_csrf_session(app: FastAPI) -> None:
     @app.middleware("http")
-    async def browser_session(request: Request, call_next: Any) -> Response:
+    async def csrf_session(request: Request, call_next: Any) -> Response:
         settings = _settings(request)
         claims = verify_session(
             settings.session_secret,
             request.cookies.get(settings.session_cookie_name),
         )
         token: str | None = None
-        if claims is None and not settings.authentication_enabled:
-            claims, token = _new_browser_session(settings)
-        request.state.browser_session = claims
+        if claims is None:
+            claims, token = _new_csrf_session(settings)
+        request.state.csrf_session = claims
         response = cast(Response, await call_next(request))
         if token is not None:
             _set_session_cookie(response, settings, token)
@@ -138,9 +133,6 @@ def _add_security_headers(app: FastAPI) -> None:
 
 def _register_routes(app: FastAPI) -> None:
     app.add_api_route("/", _root, methods=["GET"], include_in_schema=False)
-    app.add_api_route("/login", _login_page, methods=["GET"], response_class=HTMLResponse)
-    app.add_api_route("/login", _login, methods=["POST"], response_class=HTMLResponse)
-    app.add_api_route("/logout", _logout, methods=["POST"], response_class=HTMLResponse)
     app.add_api_route("/projects", _projects, methods=["GET"], response_class=HTMLResponse)
     app.add_api_route(
         "/projects/{project_key}/backlog",
@@ -190,61 +182,13 @@ def _register_not_found_handlers(app: FastAPI) -> None:
         return PlainTextResponse("Not found", status_code=status.HTTP_404_NOT_FOUND)
 
 
-async def _root(_claims: Annotated[SessionClaims, Depends(_browser_session)]) -> Response:
+async def _root(_claims: Annotated[CsrfSession, Depends(_csrf_session)]) -> Response:
     return RedirectResponse("/projects", status_code=status.HTTP_303_SEE_OTHER)
-
-
-async def _login_page(request: Request, next: str | None = None) -> Response:  # noqa: A002
-    if not _settings(request).authentication_enabled:
-        return RedirectResponse("/projects", status_code=status.HTTP_303_SEE_OTHER)
-    context = _base_context(request)
-    context["next"] = normalize_local_redirect(next)
-    return _TEMPLATES.TemplateResponse(request, "login.html", context)
-
-
-async def _login(request: Request) -> Response:
-    settings = _settings(request)
-    if not settings.authentication_enabled:
-        return RedirectResponse("/projects", status_code=status.HTTP_303_SEE_OTHER)
-    form = await _unique_form(request)
-    destination = normalize_local_redirect(form.get("next"))
-    assert settings.owner_password_hash is not None
-    if not await _verify_owner_password_async(
-        form.get("password", ""),
-        settings.owner_password_hash,
-    ):
-        context = {**_base_context(request), "next": destination}
-        context["error"] = "Password was not accepted."
-        return _TEMPLATES.TemplateResponse(
-            request,
-            "login.html",
-            context,
-            status_code=status.HTTP_401_UNAUTHORIZED,
-        )
-    return _authenticated_redirect(request, destination)
-
-
-async def _logout(
-    request: Request,
-    claims: Annotated[SessionClaims, Depends(_browser_session)],
-) -> Response:
-    form = await _unique_form(request)
-    _require_csrf(claims, form.get("csrf_token"))
-    response = RedirectResponse("/login", status_code=status.HTTP_303_SEE_OTHER)
-    settings = _settings(request)
-    response.delete_cookie(
-        settings.session_cookie_name,
-        path="/",
-        secure=settings.secure_cookies,
-        httponly=True,
-        samesite="strict",
-    )
-    return response
 
 
 async def _projects(
     request: Request,
-    claims: Annotated[SessionClaims, Depends(_browser_session)],
+    claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
     projects = await ListProjects(_uow_factory(request))()
     context = {
@@ -258,7 +202,7 @@ async def _projects(
 async def _backlog(
     request: Request,
     project_key: str,
-    claims: Annotated[SessionClaims, Depends(_browser_session)],
+    claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
     context = await _workspace_context(request, workspace, claims, "backlog")
@@ -268,7 +212,7 @@ async def _backlog(
 async def _board(
     request: Request,
     project_key: str,
-    claims: Annotated[SessionClaims, Depends(_browser_session)],
+    claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
     columns, done = _board_features(workspace)
@@ -281,7 +225,7 @@ async def _feature_detail(
     request: Request,
     project_key: str,
     feature_number: int,
-    claims: Annotated[SessionClaims, Depends(_browser_session)],
+    claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
     factory = _uow_factory(request)
     detail = await GetProjectFeature(factory)(
@@ -306,7 +250,7 @@ async def _feature_detail(
 async def _approvals(
     request: Request,
     project_key: str,
-    claims: Annotated[SessionClaims, Depends(_browser_session)],
+    claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
     approvals = await ListProjectApprovals(_uow_factory(request))(project_key=project_key)
@@ -318,7 +262,7 @@ async def _approvals(
 async def _reports(
     request: Request,
     project_key: str,
-    claims: Annotated[SessionClaims, Depends(_browser_session)],
+    claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
     reports = await ListProjectReports(_uow_factory(request))(project_key=project_key)
@@ -330,7 +274,7 @@ async def _reports(
 async def _reorder_backlog(
     request: Request,
     project_key: str,
-    claims: Annotated[SessionClaims, Depends(_browser_session)],
+    claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
     form = await _reorder_form(request)
@@ -362,7 +306,7 @@ async def _workspace(request: Request, project_key: str) -> ProjectWorkspace:
 async def _workspace_context(
     request: Request,
     workspace: ProjectWorkspace,
-    claims: SessionClaims,
+    claims: CsrfSession,
     active_page: str,
 ) -> dict[str, Any]:
     approvals = await ListProjectApprovals(_uow_factory(request))(project_key=workspace.project.key)
@@ -407,7 +351,7 @@ def _is_completed(feature: Feature) -> bool:
 async def _reorder_error(
     request: Request,
     project_key: str,
-    claims: SessionClaims,
+    claims: CsrfSession,
     error: DomainError,
     status_code: int,
 ) -> Response:
@@ -433,29 +377,17 @@ def _safe_reorder_message(error: DomainError) -> str:
     return "The submitted order is not the exact current future backlog."
 
 
-def _browser_session(request: Request) -> SessionClaims:
-    claims = cast(SessionClaims | None, request.state.browser_session)
+def _csrf_session(request: Request) -> CsrfSession:
+    claims = cast(CsrfSession | None, request.state.csrf_session)
     if claims is None:
-        target = request.url.path
-        if request.url.query:
-            target = f"{target}?{request.url.query}"
-        location = f"/login?{urlencode({'next': target})}"
-        raise HTTPException(status_code=status.HTTP_303_SEE_OTHER, headers={"Location": location})
+        raise RuntimeError("Browser session middleware did not initialize a session.")
     return claims
 
 
-def _authenticated_redirect(request: Request, destination: str) -> Response:
-    settings = _settings(request)
-    _claims, token = _new_browser_session(settings)
-    response = RedirectResponse(destination, status_code=status.HTTP_303_SEE_OTHER)
-    _set_session_cookie(response, settings, token)
-    return response
-
-
-def _new_browser_session(settings: WebSettings) -> tuple[SessionClaims, str]:
+def _new_csrf_session(settings: WebSettings) -> tuple[CsrfSession, str]:
     now = int(time.time())
     csrf_token = generate_csrf_token()
-    claims = SessionClaims(
+    claims = CsrfSession(
         csrf_token=csrf_token,
         issued_at=now,
         expires_at=now + settings.session_ttl_seconds,
@@ -485,17 +417,6 @@ def _set_session_cookie(
     )
 
 
-async def _unique_form(request: Request) -> dict[str, str]:
-    _require_form_content_type(request)
-    try:
-        return parse_urlencoded_form(
-            await _bounded_body(request),
-            max_bytes=_MAX_FORM_BYTES,
-        )
-    except FormDecodeError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST) from error
-
-
 async def _reorder_form(request: Request) -> dict[str, list[str]]:
     _require_form_content_type(request)
     body = await _bounded_body(request)
@@ -515,10 +436,6 @@ async def _reorder_form(request: Request) -> dict[str, list[str]]:
     for key, value in pairs:
         values.setdefault(key, []).append(value)
     return values
-
-
-async def _verify_owner_password_async(password: str, encoded: str) -> bool:
-    return await asyncio.to_thread(verify_owner_password, password, encoded)
 
 
 async def _bounded_body(request: Request) -> bytes:
@@ -587,7 +504,7 @@ def _single_value(form: dict[str, list[str]], name: str) -> str | None:
     return values[0]
 
 
-def _require_csrf(claims: SessionClaims, submitted: str | None) -> None:
+def _require_csrf(claims: CsrfSession, submitted: str | None) -> None:
     if not verify_csrf_token(claims.csrf_token, submitted):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
@@ -607,7 +524,6 @@ def _project_id(workspace: ProjectWorkspace) -> int:
 def _base_context(request: Request) -> dict[str, Any]:
     return {
         "request": request,
-        "authentication_enabled": _settings(request).authentication_enabled,
         "project": None,
         "active_page": "",
         "approval_count": 0,

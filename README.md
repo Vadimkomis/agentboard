@@ -69,7 +69,7 @@ npm install -g @openai/codex
 
 ## Browser quick start
 
-The browser binds to loopback and opens without a login by default. These
+The browser binds to loopback and has no login or password authentication. These
 commands create a representative demo workspace in an explicit SQLite database
 and start the app:
 
@@ -96,26 +96,9 @@ agentboard create-project \
   --db "$AGENTBOARD_DB_PATH"
 ```
 
-For an SSH-tunneled or shared-machine workspace, opt into a password gate:
-
-```bash
-# Enter and confirm the password, then copy the printed hash.
-agentboard hash-password
-export AGENTBOARD_OWNER_PASSWORD_HASH='paste-the-printed-hash-here'
-
-# Supplying a stable secret preserves signed sessions across restarts.
-export AGENTBOARD_SESSION_SECRET="$(
-  python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
-)"
-
-agentboard web --db "$AGENTBOARD_DB_PATH"
-```
-
 When no session secret is configured, AgentBoard generates an in-memory secret
-for that process. Password-free and password-protected modes both use signed
-browser sessions with `SameSite=Strict` cookies for CSRF protection.
-Password-free mode assumes the machine's local users and processes are trusted;
-enable the password gate on a shared machine.
+for that process. The signed `SameSite=Strict` session cookie binds CSRF tokens
+to one browser; it does not authenticate a user or restrict access.
 
 Direct non-loopback binding is intentionally rejected. To use a browser on
 another machine, keep AgentBoard bound to loopback and use an SSH tunnel or a
@@ -155,7 +138,7 @@ python3 -m pytest \
   tests/test_browser_cli.py
 ```
 
-It verifies login-free local access, optional owner authentication, atomic demo
+It verifies login-free local access, absent authentication routes, atomic demo
 seeding, project isolation, exact page content, security headers and CSRF, five
 ordered Board columns plus Done, Feature
 details, non-actionable approval attention when an immutable revision is

@@ -142,7 +142,7 @@ def test_seed_demo_command_refuses_to_modify_an_existing_demo(tmp_path: Path) ->
     assert asyncio.run(counts()) == (2, 9, 0)
 
 
-def test_web_command_starts_without_owner_credentials(
+def test_web_command_starts_with_an_ephemeral_csrf_session(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -160,33 +160,17 @@ def test_web_command_starts_without_owner_credentials(
 
     assert result.exit_code == 0
     assert len(started) == 1
-    assert started[0].state.web_settings.owner_password_hash is None
+    assert len(started[0].state.web_settings.session_secret) >= 32
 
 
-def test_web_command_enables_optional_owner_credentials(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    started: list[object] = []
-    secret = "a-secure-session-secret-that-is-long"
+def test_browser_cli_does_not_expose_password_authentication() -> None:
+    root_help = CliRunner().invoke(app, ["--help"])
+    web_help = CliRunner().invoke(app, ["web", "--help"])
 
-    def capture_app(application: object, **_options: object) -> None:
-        started.append(application)
-
-    monkeypatch.setattr("uvicorn.run", capture_app)
-    result = CliRunner().invoke(
-        app,
-        ["web", "--db", str(tmp_path / "browser.db")],
-        env={
-            "AGENTBOARD_OWNER_PASSWORD_HASH": "hash",
-            "AGENTBOARD_SESSION_SECRET": secret,
-        },
-    )
-
-    assert result.exit_code == 0
-    assert len(started) == 1
-    assert started[0].state.web_settings.authentication_enabled is True
-    assert started[0].state.web_settings.session_secret == secret
+    assert root_help.exit_code == 0
+    assert web_help.exit_code == 0
+    assert "hash-password" not in root_help.stdout
+    assert "--owner-password-hash" not in web_help.stdout
 
 
 @pytest.mark.parametrize("host", ["0.0.0.0", "::1"])
@@ -198,10 +182,7 @@ def test_web_command_rejects_unsupported_binding(
     result = CliRunner().invoke(
         app,
         ["web", "--host", host],
-        env={
-            "AGENTBOARD_OWNER_PASSWORD_HASH": "hash",
-            "AGENTBOARD_SESSION_SECRET": "a-secure-session-secret-that-is-long",
-        },
+        env={"AGENTBOARD_SESSION_SECRET": "a-secure-session-secret-that-is-long"},
     )
 
     assert result.exit_code == 2

@@ -395,12 +395,12 @@ Feature: Browser v0 derived engineering state
 
 Feature: Browser v0 local project workspace
 
-  Scenario: Login-free loopback browser with optional authentication
+  Scenario: Login-free loopback browser
     Given AgentBoard is bound to a supported loopback address
     When AgentBoard serves the browser application on a loopback address
-    Then project routes open without requiring a login by default
-    And a configured owner password enables an optional login boundary
-    And signed browser sessions protect mutations with CSRF tokens in either mode
+    Then project routes always open without requiring a login
+    And no password-authentication command, configuration, route, or interface is exposed
+    And a signed browser session binds CSRF tokens without representing user identity
     And direct non-loopback binding is rejected in favor of an SSH tunnel or trusted private proxy
     And the status is "completed"
 

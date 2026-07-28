@@ -92,8 +92,8 @@ Status: Approved
 35. Browser refresh reconstructs the page from SQLite without inventing or
     losing state.
 36. State-changing requests require a signed browser session, CSRF protection,
-    idempotency, and the expected record version; password authentication is
-    optional for loopback use.
+    idempotency, and the expected record version; the loopback browser exposes
+    no password-authentication surface.
 
 ## Human-attention notifications
 

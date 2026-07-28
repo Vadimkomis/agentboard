@@ -57,14 +57,6 @@
           <a class="all-projects-link" href="/projects">
             {{ icon("projects") }}<span>All projects</span>
           </a>
-          {% if authentication_enabled and csrf_token %}
-            <form action="/logout" method="post" hx-boost="false">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <button class="all-projects-link sidebar-action" type="submit">
-                {{ icon("logout") }}<span>Sign out</span>
-              </button>
-            </form>
-          {% endif %}
           <div class="system-health">
             <span class="health-dot" aria-hidden="true"></span>
             <span><strong>Local workspace</strong><small>SQLite connected</small></span>
@@ -78,7 +70,7 @@
             {{ icon("menu") }}
           </button>
           <div class="topbar__title">
-            {% block eyebrow %}{% if project %}{{ project.key }} workspace{% else %}Private workspace{% endif %}{% endblock %}
+            {% block eyebrow %}{% if project %}{{ project.key }} workspace{% else %}Local workspace{% endif %}{% endblock %}
             <h1>{% block page_title %}AgentBoard{% endblock %}</h1>
           </div>
           <div class="topbar__actions">

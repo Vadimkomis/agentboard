@@ -16,7 +16,6 @@ class WebSettings:
     """Explicit browser configuration kept outside the SQLite database."""
 
     database_path: Path
-    owner_password_hash: str | None = None
     session_secret: str = field(default_factory=_new_session_secret)
     allowed_hosts: tuple[str, ...] = ("localhost", "127.0.0.1")
     secure_cookies: bool = False
@@ -25,8 +24,6 @@ class WebSettings:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "database_path", Path(self.database_path))
-        if self.owner_password_hash is not None and not self.owner_password_hash:
-            raise ValueError("owner password hash must not be empty when configured")
         if (
             not isinstance(self.session_secret, str)
             or len(self.session_secret.encode("utf-8")) < 32
@@ -38,8 +35,3 @@ class WebSettings:
             raise ValueError("session TTL must be positive")
         if not self.session_cookie_name:
             raise ValueError("session cookie name must not be empty")
-
-    @property
-    def authentication_enabled(self) -> bool:
-        """Whether the owner opted into a password gate."""
-        return self.owner_password_hash is not None

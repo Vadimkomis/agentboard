@@ -44,24 +44,18 @@ from agentboard.infrastructure.repositories import (
     SqlAlchemyFeatureRepository,
     SqlAlchemyProjectRepository,
 )
-from agentboard.web import WebSettings, create_app, hash_owner_password
+from agentboard.web import WebSettings, create_app
 from agentboard.web import app as web_app
-from agentboard.web.security import SessionClaims
+from agentboard.web.security import CsrfSession, verify_session
 
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
-PASSWORD = "correct-horse-battery-staple"
-PASSWORD_HASH = hash_owner_password(
-    PASSWORD,
-    salt=bytes.fromhex("00112233445566778899aabbccddeeff"),
-    iterations=100_000,
-)
+SESSION_SECRET = "test-session-secret-that-is-long-enough-for-hmac"
 
 
 def _settings(path: Path, **overrides: Any) -> WebSettings:
     values: dict[str, Any] = {
         "database_path": path,
-        "owner_password_hash": PASSWORD_HASH,
-        "session_secret": "test-session-secret-that-is-long-enough-for-hmac",
+        "session_secret": SESSION_SECRET,
         "allowed_hosts": ("testserver",),
         "secure_cookies": False,
     }
@@ -82,19 +76,16 @@ async def _web_client(path: Path) -> AsyncIterator[httpx.AsyncClient]:
             yield client
 
 
-async def _login(client: httpx.AsyncClient) -> None:
-    response = await client.post(
-        "/login",
-        content=f"password={PASSWORD}&next=%2Fprojects",
-        headers={"content-type": "application/x-www-form-urlencoded"},
-    )
-    assert response.status_code == 303
-
-
 def _hidden_value(html: str, name: str) -> str:
     marker = f'name="{name}" value="'
     start = html.index(marker) + len(marker)
     return html[start : html.index('"', start)]
+
+
+def _cookie_csrf(client: httpx.AsyncClient) -> str:
+    session = verify_session(SESSION_SECRET, client.cookies.get("agentboard_session"))
+    assert session is not None
+    return session.csrf_token
 
 
 async def _seed_browser(path: Path) -> tuple[int, int]:
@@ -365,7 +356,6 @@ async def test_routes_render_immediate_application_results_without_async_portal_
     _install_immediate_queries(monkeypatch)
 
     async with _web_client(tmp_path / "immediate-routes.db") as client:
-        await _login(client)
         projects = await client.get("/projects")
         backlog = await client.get("/projects/AB/backlog")
         board = await client.get("/projects/AB/board")
@@ -398,7 +388,6 @@ async def test_conflicting_immediate_reorder_renders_the_latest_backlog(
     _install_immediate_queries(monkeypatch, reorder_error=PersistenceConflictError())
 
     async with _web_client(tmp_path / "immediate-conflict.db") as client:
-        await _login(client)
         backlog = await client.get("/projects/AB/backlog")
         csrf = _hidden_value(backlog.text, "csrf_token")
         response = await client.post(
@@ -422,7 +411,6 @@ async def test_invalid_immediate_reorder_renders_a_safe_domain_error(
     _install_immediate_queries(monkeypatch, reorder_error=DuplicateIdentifiersError())
 
     async with _web_client(tmp_path / "immediate-domain-error.db") as client:
-        await _login(client)
         backlog = await client.get("/projects/AB/backlog")
         csrf = _hidden_value(backlog.text, "csrf_token")
         response = await client.post(
@@ -445,7 +433,6 @@ async def test_reorder_rejects_an_unpersisted_project_read_model(
     _install_immediate_queries(monkeypatch, project_id=None)
 
     async with _web_client(tmp_path / "unpersisted-project.db") as client:
-        await _login(client)
         backlog = await client.get("/projects/AB/backlog")
         csrf = _hidden_value(backlog.text, "csrf_token")
         with pytest.raises(RuntimeError, match="must have an identifier"):
@@ -460,15 +447,13 @@ async def test_reorder_rejects_an_unpersisted_project_read_model(
 
 
 @pytest.mark.asyncio
-async def test_async_browser_routes_render_navigation_and_end_the_session(
+async def test_async_browser_routes_render_navigation_without_authentication(
     tmp_path: Path,
 ) -> None:
     path = tmp_path / "routes.db"
     _project_id, future_id = await _seed_browser(path)
 
     async with _web_client(path) as client:
-        login_page = await client.get("/login?next=/projects/AB/board")
-        await _login(client)
         root = await client.get("/")
         projects = await client.get("/projects")
         backlog = await client.get("/projects/AB/backlog")
@@ -476,14 +461,7 @@ async def test_async_browser_routes_render_navigation_and_end_the_session(
         detail = await client.get(f"/projects/AB/features/{future_id}")
         approvals = await client.get("/projects/AB/approvals")
         reports = await client.get("/projects/AB/reports")
-        csrf = _hidden_value(projects.text, "csrf_token")
-        logout = await client.post(
-            "/logout",
-            content=f"csrf_token={csrf}",
-            headers={"content-type": "application/x-www-form-urlencoded"},
-        )
 
-    assert login_page.status_code == 200
     assert root.headers["location"] == "/projects"
     assert "AgentBoard" in projects.text
     assert "Current work" in backlog.text
@@ -491,10 +469,6 @@ async def test_async_browser_routes_render_navigation_and_end_the_session(
     assert "Future work" in detail.text
     assert "Design approval" in approvals.text
     assert "Sprint 0" in reports.text
-    assert logout.status_code == 303
-    assert logout.headers["location"] == "/login"
-    assert "agentboard_session=" in logout.headers["set-cookie"]
-    assert "Max-Age=0" in logout.headers["set-cookie"]
 
 
 @pytest.mark.asyncio
@@ -516,10 +490,8 @@ async def test_empty_catalog_and_project_without_a_sprint_render_valid_empty_sta
         await database.dispose()
 
     async with _web_client(empty_path) as empty_client:
-        await _login(empty_client)
         catalog = await empty_client.get("/projects")
     async with _web_client(project_path) as client:
-        await _login(client)
         backlog = await client.get("/projects/AB/backlog")
         board = await client.get("/projects/AB/board")
 
@@ -528,54 +500,6 @@ async def test_empty_catalog_and_project_without_a_sprint_render_valid_empty_sta
     assert "No sprint is active for this project" in backlog.text
     assert board.text.count("data-board-column=") == 5
     assert "No work in this state" in board.text
-
-
-@pytest.mark.asyncio
-async def test_anonymous_query_is_preserved_as_a_local_post_login_destination(
-    tmp_path: Path,
-) -> None:
-    async with _web_client(tmp_path / "anonymous.db") as client:
-        response = await client.get("/projects?view=all")
-
-    assert response.status_code == 303
-    assert response.headers["location"] == "/login?next=%2Fprojects%3Fview%3Dall"
-
-
-@pytest.mark.asyncio
-async def test_login_rejects_unsupported_and_malformed_form_bodies(tmp_path: Path) -> None:
-    async with _web_client(tmp_path / "login-forms.db") as client:
-        unsupported = await client.post("/login", content="password=x")
-        malformed = await client.post(
-            "/login",
-            content="password",
-            headers={"content-type": "application/x-www-form-urlencoded"},
-        )
-
-    assert unsupported.status_code == 415
-    assert malformed.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_login_offloads_password_verification_from_the_event_loop(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[tuple[str, str]] = []
-
-    async def verify(password: str, encoded: str) -> bool:
-        calls.append((password, encoded))
-        return True
-
-    monkeypatch.setattr(web_app, "_verify_owner_password_async", verify)
-    async with _web_client(tmp_path / "offloaded-login.db") as client:
-        response = await client.post(
-            "/login",
-            content="password=anything&next=%2Fprojects",
-            headers={"content-type": "application/x-www-form-urlencoded"},
-        )
-
-    assert response.status_code == 303
-    assert calls == [("anything", PASSWORD_HASH)]
 
 
 def _bare_request(
@@ -614,36 +538,16 @@ def _form_request(app: object, body: bytes) -> Request:
     )
 
 
-@pytest.mark.asyncio
-async def test_direct_login_and_logout_forms_preserve_session_security(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = create_app(_settings(tmp_path / "direct-session.db"))
-    claims = SessionClaims(csrf_token="direct-csrf", issued_at=1, expires_at=2)
+def test_missing_csrf_middleware_state_fails_explicitly() -> None:
+    request = _bare_request()
+    request.state.csrf_session = None
 
-    async def accept_password(_password: str, _encoded: str) -> bool:
-        return True
-
-    monkeypatch.setattr(web_app, "_verify_owner_password_async", accept_password)
-    login = await web_app._login(
-        _form_request(app, b"password=accepted&next=%2Fprojects%2FAB%2Fboard")
-    )
-    logout = await web_app._logout(
-        _form_request(app, b"csrf_token=direct-csrf"),
-        claims,
-    )
-
-    assert login.status_code == 303
-    assert login.headers["location"] == "/projects/AB/board"
-    assert "agentboard_session=" in login.headers["set-cookie"]
-    assert logout.status_code == 303
-    assert logout.headers["location"] == "/login"
-    assert "Max-Age=0" in logout.headers["set-cookie"]
+    with pytest.raises(RuntimeError, match="did not initialize"):
+        web_app._csrf_session(request)
 
 
 @pytest.mark.asyncio
-async def test_direct_form_parsers_accept_exact_values_and_reject_malformed_bodies(
+async def test_direct_reorder_form_parser_accepts_exact_values_and_rejects_malformed_bodies(
     tmp_path: Path,
 ) -> None:
     app = create_app(_settings(tmp_path / "direct-forms.db"))
@@ -654,14 +558,25 @@ async def test_direct_form_parsers_accept_exact_values_and_reject_malformed_bodi
         )
     )
 
-    with pytest.raises(HTTPException) as malformed_unique:
-        await web_app._unique_form(_form_request(app, b"password"))
     with pytest.raises(HTTPException) as malformed_reorder:
         await web_app._reorder_form(_form_request(app, b"csrf_token=\xff"))
 
     assert accepted["feature_ids"] == ["11"]
-    assert malformed_unique.value.status_code == 400
     assert malformed_reorder.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_backlog_reorder_rejects_unsupported_content_type(tmp_path: Path) -> None:
+    path = tmp_path / "unsupported-reorder.db"
+    await _seed_browser(path)
+
+    async with _web_client(path) as client:
+        response = await client.post(
+            "/projects/AB/backlog/reorder",
+            content=b"csrf_token=missing-content-type",
+        )
+
+    assert response.status_code == 415
 
 
 @pytest.mark.asyncio
@@ -670,7 +585,7 @@ async def test_direct_reorder_handler_accepts_the_exact_future_backlog(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _project, _future, workspace, _detail, _approval, _report = _view_models()
-    claims = SessionClaims(csrf_token="direct-csrf", issued_at=1, expires_at=2)
+    claims = CsrfSession(csrf_token="direct-csrf", issued_at=1, expires_at=2)
     app = create_app(_settings(tmp_path / "direct-reorder.db"))
 
     async def load_workspace(_request: Request, _project_key: str) -> ProjectWorkspace:
@@ -741,7 +656,6 @@ async def test_backlog_reorder_rejects_oversized_or_malformed_forms(
     path = tmp_path / "malformed-reorder.db"
     await _seed_browser(path)
     async with _web_client(path) as client:
-        await _login(client)
         response = await client.post(
             "/projects/AB/backlog/reorder",
             content=body,
@@ -774,7 +688,6 @@ async def test_backlog_reorder_rejects_ambiguous_or_invalid_values(
     path = tmp_path / "invalid-values.db"
     await _seed_browser(path)
     async with _web_client(path) as client:
-        await _login(client)
         backlog = await client.get("/projects/AB/backlog")
         csrf = _hidden_value(backlog.text, "csrf_token")
         response = await client.post(
@@ -804,9 +717,8 @@ async def test_empty_future_backlog_can_be_submitted_as_an_exact_empty_order(
         await database.dispose()
 
     async with _web_client(path) as client:
-        await _login(client)
-        page = await client.get("/projects/AB/backlog")
-        csrf = _hidden_value(page.text, "csrf_token")
+        await client.get("/projects/AB/backlog")
+        csrf = _cookie_csrf(client)
         response = await client.post(
             "/projects/AB/backlog/reorder",
             content=(
@@ -825,7 +737,6 @@ async def test_invalid_exact_backlog_order_returns_a_safe_domain_error(
     path = tmp_path / "domain-error.db"
     await _seed_browser(path)
     async with _web_client(path) as client:
-        await _login(client)
         page = await client.get("/projects/AB/backlog")
         csrf = _hidden_value(page.text, "csrf_token")
         response = await client.post(
@@ -846,7 +757,6 @@ async def test_idempotency_key_reuse_returns_a_safe_conflict(tmp_path: Path) -> 
     path = tmp_path / "idempotency-conflict.db"
     _project_id, future_id = await _seed_browser(path)
     async with _web_client(path) as client:
-        await _login(client)
         page = await client.get("/projects/AB/backlog")
         csrf = _hidden_value(page.text, "csrf_token")
         first = (
@@ -874,7 +784,6 @@ async def test_idempotency_key_reuse_returns_a_safe_conflict(tmp_path: Path) -> 
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
-        ({"owner_password_hash": ""}, "owner password hash"),
         ({"session_secret": None}, "at least 32 bytes"),
         ({"session_secret": "too-short"}, "at least 32 bytes"),
         ({"allowed_hosts": ()}, "allowed hosts"),
@@ -892,7 +801,7 @@ def test_web_settings_reject_unsafe_values(
         _settings(tmp_path / "settings.db", **overrides)
 
 
-def test_web_settings_default_to_login_free_with_an_ephemeral_secret(
+def test_web_settings_default_to_an_ephemeral_csrf_session_secret(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -903,7 +812,6 @@ def test_web_settings_default_to_login_free_with_an_ephemeral_secret(
 
     settings = WebSettings(database_path=tmp_path / "settings.db")
 
-    assert settings.authentication_enabled is False
     assert settings.session_secret == "x" * 32
 
 
