@@ -1,4 +1,4 @@
-"""Behavioral edge coverage for the owner-only browser application."""
+"""Behavioral edge coverage for the loopback browser application."""
 
 from __future__ import annotations
 
@@ -776,6 +776,7 @@ async def test_idempotency_key_reuse_returns_a_safe_conflict(tmp_path: Path) -> 
     ("overrides", "message"),
     [
         ({"owner_password_hash": ""}, "owner password hash"),
+        ({"session_secret": None}, "at least 32 bytes"),
         ({"session_secret": "too-short"}, "at least 32 bytes"),
         ({"allowed_hosts": ()}, "allowed hosts"),
         ({"allowed_hosts": ("",)}, "allowed hosts"),
@@ -790,6 +791,21 @@ def test_web_settings_reject_unsafe_values(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         _settings(tmp_path / "settings.db", **overrides)
+
+
+def test_web_settings_default_to_login_free_with_an_ephemeral_secret(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "agentboard.web.settings.secrets.token_urlsafe",
+        lambda size: "x" * size,
+    )
+
+    settings = WebSettings(database_path=tmp_path / "settings.db")
+
+    assert settings.authentication_enabled is False
+    assert settings.session_secret == "x" * 32
 
 
 @pytest.mark.asyncio

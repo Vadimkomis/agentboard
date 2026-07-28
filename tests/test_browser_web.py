@@ -58,6 +58,25 @@ async def web_client(seeded_web_path: Path) -> AsyncIterator[httpx.AsyncClient]:
             yield client
 
 
+@pytest.fixture
+async def local_web_client(seeded_web_path: Path) -> AsyncIterator[httpx.AsyncClient]:
+    settings = WebSettings(
+        database_path=seeded_web_path,
+        session_secret="test-session-secret-that-is-long-enough-for-hmac",
+        allowed_hosts=("testserver",),
+        secure_cookies=False,
+    )
+    app = create_app(settings)
+    async with app.router.lifespan_context(app):
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="http://testserver",
+            follow_redirects=False,
+        ) as client:
+            yield client
+
+
 async def _login(client: httpx.AsyncClient, *, next_path: str = "/projects") -> None:
     response = await client.post(
         "/login",
@@ -223,6 +242,49 @@ async def test_login_rejects_bad_password_and_external_redirect(
     )
     assert accepted.status_code == 303
     assert accepted.headers["location"] == "/projects"
+
+
+async def test_loopback_default_opens_without_login_and_retains_csrf(
+    local_web_client: httpx.AsyncClient,
+) -> None:
+    projects = await local_web_client.get("/projects")
+    backlog = await local_web_client.get("/projects/AB/backlog")
+    csrf = _hidden_value(backlog.text, "csrf_token")
+    rejected = await local_web_client.post(
+        "/projects/AB/backlog/reorder",
+        data={
+            "expected_version": "1",
+            "idempotency_key": "missing-local-csrf",
+            "feature_ids": ["5", "1"],
+        },
+    )
+    login_page = await local_web_client.get("/login")
+    login_submission = await local_web_client.post(
+        "/login",
+        data={"password": "unneeded"},
+    )
+
+    assert projects.status_code == 200
+    assert "agentboard_session" in projects.cookies
+    assert 'action="/logout"' not in projects.text
+    assert backlog.status_code == 200
+    assert csrf
+    assert rejected.status_code == 403
+    assert login_page.status_code == 303
+    assert login_page.headers["location"] == "/projects"
+    assert login_submission.status_code == 303
+    assert login_submission.headers["location"] == "/projects"
+
+
+async def test_login_free_mode_replaces_an_invalid_browser_session(
+    local_web_client: httpx.AsyncClient,
+) -> None:
+    local_web_client.cookies.set("agentboard_session", "tampered")
+
+    response = await local_web_client.get("/projects")
+
+    assert response.status_code == 200
+    assert response.cookies["agentboard_session"] != "tampered"
 
 
 async def test_project_selector_is_deterministic_and_links_scoped_routes(

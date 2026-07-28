@@ -261,8 +261,8 @@ button and stored in the browser.
 - Treat `review_base_url` as separate from the listen address. Validate it at
   startup before enabling phone notifications.
 - Run under a dedicated unprivileged operating-system account where practical.
-- Use authenticated sessions, CSRF protection, idempotency keys, and optimistic
-  record versions.
+- Use signed browser sessions, CSRF protection, idempotency keys, and optimistic
+  record versions. Password authentication is optional for loopback use.
 - Keep secrets outside SQLite and project artifacts.
 - Resolve all filesystem paths beneath the configured project root.
 
@@ -278,7 +278,7 @@ configured root.
 3. PR binding, webhook ingestion, and reconciliation.
 4. Independent-validator persistence, execution, and state derivation.
 5. Durable Human Review notifications and OpenClaw dogfood delivery.
-6. Browser authentication and shell.
+6. Loopback browser security and shell, with optional password authentication.
 7. Backlog, Board, Feature detail, Approvals, and project Reports.
 8. Serial engineering execution.
 9. macOS and Linux deployment, backup, and restore.

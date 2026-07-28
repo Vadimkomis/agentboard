@@ -1,7 +1,7 @@
 # AgentBoard
 
 **Local agent-development workspace** — use the established terminal workflow
-for Story execution and an owner-authenticated browser workspace for durable
+for Story execution and a loopback-only browser workspace for durable
 Project, Feature, backlog, Sprint, approval-attention, and report state.
 
 AgentBoard currently has two local interfaces:
@@ -69,22 +69,41 @@ npm install -g @openai/codex
 
 ## Browser quick start
 
-The browser binds to loopback by default and requires one owner password. These
-commands create a Project in an explicit SQLite database and start the app:
+The browser binds to loopback and opens without a login by default. These
+commands create a representative demo workspace in an explicit SQLite database
+and start the app:
 
 ```bash
-export AGENTBOARD_DB_PATH="$PWD/agentboard-browser.db"
+export AGENTBOARD_DB_PATH="$PWD/agentboard-demo.db"
 
+agentboard seed-demo --db "$AGENTBOARD_DB_PATH"
+agentboard web --db "$AGENTBOARD_DB_PATH"
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000) and select `DEMO`.
+The demo includes an active Sprint across all five Board states, Current Sprint
+Done, three reorderable future-backlog items, Feature history, design and Human
+Review attention, and a completed-Sprint report. Seeding is atomic and refuses
+to alter an existing `DEMO` Project; choose a new database path for a fresh copy.
+
+To create an empty Project instead:
+
+```bash
 agentboard create-project \
   AB \
   "AgentBoard" \
   https://github.com/owner/repository \
   --db "$AGENTBOARD_DB_PATH"
+```
 
+For an SSH-tunneled or shared-machine workspace, opt into a password gate:
+
+```bash
 # Enter and confirm the password, then copy the printed hash.
 agentboard hash-password
 export AGENTBOARD_OWNER_PASSWORD_HASH='paste-the-printed-hash-here'
 
+# Supplying a stable secret preserves signed sessions across restarts.
 export AGENTBOARD_SESSION_SECRET="$(
   python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
 )"
@@ -92,13 +111,11 @@ export AGENTBOARD_SESSION_SECRET="$(
 agentboard web --db "$AGENTBOARD_DB_PATH"
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000), sign in with the password
-used by `agentboard hash-password`, and select the Project.
-
-The current CLI creates Projects; populated Feature and Sprint states are
-created through the application layer. The automated browser tests seed
-temporary databases with those records so every view and backlog-reorder path
-can be exercised locally.
+When no session secret is configured, AgentBoard generates an in-memory secret
+for that process. Password-free and password-protected modes both use signed
+browser sessions with `SameSite=Strict` cookies for CSRF protection.
+Password-free mode assumes the machine's local users and processes are trusted;
+enable the password gate on a shared machine.
 
 Direct non-loopback binding is intentionally rejected. To use a browser on
 another machine, keep AgentBoard bound to loopback and use an SSH tunnel or a
@@ -138,8 +155,9 @@ python3 -m pytest \
   tests/test_browser_cli.py
 ```
 
-It verifies owner authentication, project isolation, exact page content,
-security headers and CSRF, five ordered Board columns plus Done, Feature
+It verifies login-free local access, optional owner authentication, atomic demo
+seeding, project isolation, exact page content, security headers and CSRF, five
+ordered Board columns plus Done, Feature
 details, non-actionable approval attention when an immutable revision is
 unavailable, completed-Sprint Reports, durable/idempotent backlog reordering,
 stale-version conflicts, and empty/error states.

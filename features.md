@@ -2,7 +2,7 @@
 
 This file is the single source of truth for AgentBoard features. The legacy
 Story/Ticket terminal application remains supported while the approved browser
-v0 is delivered in separate, serial feature slices. The authenticated browser
+v0 is delivered in separate, serial feature slices. The local browser
 workspace slice is complete; its GitHub, validator, worker, and notification
 integrations remain planned.
 
@@ -393,13 +393,22 @@ Feature: Browser v0 derived engineering state
     Then the result follows Ready for Engineering, Working, In Review, Human Review, Ready to Merge, or Done rules
     And the status is "planned"
 
-Feature: Browser v0 authenticated project workspace
+Feature: Browser v0 local project workspace
 
-  Scenario: Owner-authenticated local browser
-    Given the owner has configured a password hash and session secret
+  Scenario: Login-free loopback browser with optional authentication
+    Given AgentBoard is bound to a supported loopback address
     When AgentBoard serves the browser application on a loopback address
-    Then unauthenticated project routes require sign-in and authenticated sessions use CSRF-protected mutations
+    Then project routes open without requiring a login by default
+    And a configured owner password enables an optional login boundary
+    And signed browser sessions protect mutations with CSRF tokens in either mode
     And direct non-loopback binding is rejected in favor of an SSH tunnel or trusted private proxy
+    And the status is "completed"
+
+  Scenario: Seed a representative local workspace
+    Given the selected SQLite database does not contain a DEMO Project
+    When the owner runs the demo seed command
+    Then AgentBoard atomically creates representative Backlog, Board, Feature detail, Approvals, and Reports data
+    And a repeated seed refuses to modify the existing DEMO Project
     And the status is "completed"
 
   Scenario: Render project-scoped browser views

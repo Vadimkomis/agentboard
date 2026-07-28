@@ -48,12 +48,16 @@ pass/fail results; this document does not record transient statuses.
 
 ## Browser v0 application
 
-- Name: Owner-authenticated browser boundary
-- Description: Project routes require a valid signed owner session; password verification, safe post-login redirects, session expiry, CSRF, bounded form parsing, strict cookies, host checks, and browser security headers protect the local application boundary.
-- Test mapping: `tests/test_web_security.py`, `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests/test_browser_cli.py` cover the security primitives and HTTP boundary, including rejection of direct non-loopback serving; corresponds to acceptance eval 36.
+- Name: Login-free loopback browser boundary
+- Description: Project routes open without a password by default on supported loopback bindings, while a configured owner password enables optional authentication; signed browser sessions, session expiry, CSRF, bounded form parsing, strict cookies, host checks, and browser security headers protect mutations and the local application boundary.
+- Test mapping: `tests/test_web_security.py`, `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests/test_browser_cli.py` cover automatic local sessions, retained optional password verification and safe redirects, security primitives, and rejection of direct non-loopback serving; corresponds to acceptance eval 36.
+
+- Name: Representative local demo workspace
+- Description: One command atomically creates a dedicated DEMO Project with a completed Sprint report, an active Sprint spanning all Board states plus Done, reorderable future work, Feature history, and approval-attention examples without altering other Projects or replacing an existing DEMO Project.
+- Test mapping: `tests/test_browser_cli.py` seeds a file-backed SQLite database, renders every browser view without login, verifies representative content, and proves a repeated seed leaves the exact dataset unchanged.
 
 - Name: Project-scoped browser navigation
-- Description: The authenticated Project selector and every Project route render only the selected Project's durable records; unknown and cross-Project Feature URLs do not expose another Project.
+- Description: The Project selector and every Project route render only the selected Project's durable records; unknown and cross-Project Feature URLs do not expose another Project.
 - Test mapping: `tests/test_browser_views.py`, `tests/test_browser_web.py`, and `tests/test_browser_web_edges.py` cover deterministic Project selection, page navigation, empty states, escaped content, typed not-found behavior, and isolation; corresponds to acceptance evals 4 and 35.
 
 - Name: Current Sprint and future-backlog presentation

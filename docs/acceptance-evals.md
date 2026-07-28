@@ -91,8 +91,9 @@ Status: Approved
 34. Light and dark modes are accessible and persist across sessions.
 35. Browser refresh reconstructs the page from SQLite without inventing or
     losing state.
-36. State-changing requests require authentication, CSRF protection,
-    idempotency, and the expected record version.
+36. State-changing requests require a signed browser session, CSRF protection,
+    idempotency, and the expected record version; password authentication is
+    optional for loopback use.
 
 ## Human-attention notifications
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import secrets
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -77,6 +78,7 @@ def create_app(settings: WebSettings) -> FastAPI:
         lifespan=_lifespan(settings),
     )
     app.state.web_settings = settings
+    _add_browser_session(app)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.allowed_hosts))
     _add_security_headers(app)
     app.mount("/static", StaticFiles(directory=_WEB_ROOT / "static"), name="static")
@@ -97,6 +99,24 @@ def _lifespan(settings: WebSettings) -> Any:
             await database.dispose()
 
     return lifespan
+
+
+def _add_browser_session(app: FastAPI) -> None:
+    @app.middleware("http")
+    async def browser_session(request: Request, call_next: Any) -> Response:
+        settings = _settings(request)
+        claims = verify_session(
+            settings.session_secret,
+            request.cookies.get(settings.session_cookie_name),
+        )
+        token: str | None = None
+        if claims is None and not settings.authentication_enabled:
+            claims, token = _new_browser_session(settings)
+        request.state.browser_session = claims
+        response = cast(Response, await call_next(request))
+        if token is not None:
+            _set_session_cookie(response, settings, token)
+        return response
 
 
 def _add_security_headers(app: FastAPI) -> None:
@@ -170,22 +190,28 @@ def _register_not_found_handlers(app: FastAPI) -> None:
         return PlainTextResponse("Not found", status_code=status.HTTP_404_NOT_FOUND)
 
 
-async def _root(_claims: Annotated[SessionClaims, Depends(_owner_session)]) -> Response:
+async def _root(_claims: Annotated[SessionClaims, Depends(_browser_session)]) -> Response:
     return RedirectResponse("/projects", status_code=status.HTTP_303_SEE_OTHER)
 
 
 async def _login_page(request: Request, next: str | None = None) -> Response:  # noqa: A002
+    if not _settings(request).authentication_enabled:
+        return RedirectResponse("/projects", status_code=status.HTTP_303_SEE_OTHER)
     context = _base_context(request)
     context["next"] = normalize_local_redirect(next)
     return _TEMPLATES.TemplateResponse(request, "login.html", context)
 
 
 async def _login(request: Request) -> Response:
+    settings = _settings(request)
+    if not settings.authentication_enabled:
+        return RedirectResponse("/projects", status_code=status.HTTP_303_SEE_OTHER)
     form = await _unique_form(request)
     destination = normalize_local_redirect(form.get("next"))
+    assert settings.owner_password_hash is not None
     if not await _verify_owner_password_async(
         form.get("password", ""),
-        _settings(request).owner_password_hash,
+        settings.owner_password_hash,
     ):
         context = {**_base_context(request), "next": destination}
         context["error"] = "Password was not accepted."
@@ -200,7 +226,7 @@ async def _login(request: Request) -> Response:
 
 async def _logout(
     request: Request,
-    claims: Annotated[SessionClaims, Depends(_owner_session)],
+    claims: Annotated[SessionClaims, Depends(_browser_session)],
 ) -> Response:
     form = await _unique_form(request)
     _require_csrf(claims, form.get("csrf_token"))
@@ -218,7 +244,7 @@ async def _logout(
 
 async def _projects(
     request: Request,
-    claims: Annotated[SessionClaims, Depends(_owner_session)],
+    claims: Annotated[SessionClaims, Depends(_browser_session)],
 ) -> Response:
     projects = await ListProjects(_uow_factory(request))()
     context = {
@@ -232,7 +258,7 @@ async def _projects(
 async def _backlog(
     request: Request,
     project_key: str,
-    claims: Annotated[SessionClaims, Depends(_owner_session)],
+    claims: Annotated[SessionClaims, Depends(_browser_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
     context = await _workspace_context(request, workspace, claims, "backlog")
@@ -242,7 +268,7 @@ async def _backlog(
 async def _board(
     request: Request,
     project_key: str,
-    claims: Annotated[SessionClaims, Depends(_owner_session)],
+    claims: Annotated[SessionClaims, Depends(_browser_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
     columns, done = _board_features(workspace)
@@ -255,7 +281,7 @@ async def _feature_detail(
     request: Request,
     project_key: str,
     feature_number: int,
-    claims: Annotated[SessionClaims, Depends(_owner_session)],
+    claims: Annotated[SessionClaims, Depends(_browser_session)],
 ) -> Response:
     factory = _uow_factory(request)
     detail = await GetProjectFeature(factory)(
@@ -280,7 +306,7 @@ async def _feature_detail(
 async def _approvals(
     request: Request,
     project_key: str,
-    claims: Annotated[SessionClaims, Depends(_owner_session)],
+    claims: Annotated[SessionClaims, Depends(_browser_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
     approvals = await ListProjectApprovals(_uow_factory(request))(project_key=project_key)
@@ -292,7 +318,7 @@ async def _approvals(
 async def _reports(
     request: Request,
     project_key: str,
-    claims: Annotated[SessionClaims, Depends(_owner_session)],
+    claims: Annotated[SessionClaims, Depends(_browser_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
     reports = await ListProjectReports(_uow_factory(request))(project_key=project_key)
@@ -304,7 +330,7 @@ async def _reports(
 async def _reorder_backlog(
     request: Request,
     project_key: str,
-    claims: Annotated[SessionClaims, Depends(_owner_session)],
+    claims: Annotated[SessionClaims, Depends(_browser_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
     form = await _reorder_form(request)
@@ -407,12 +433,8 @@ def _safe_reorder_message(error: DomainError) -> str:
     return "The submitted order is not the exact current future backlog."
 
 
-def _owner_session(request: Request) -> SessionClaims:
-    settings = _settings(request)
-    claims = verify_session(
-        settings.session_secret,
-        request.cookies.get(settings.session_cookie_name),
-    )
+def _browser_session(request: Request) -> SessionClaims:
+    claims = cast(SessionClaims | None, request.state.browser_session)
     if claims is None:
         target = request.url.path
         if request.url.query:
@@ -424,12 +446,34 @@ def _owner_session(request: Request) -> SessionClaims:
 
 def _authenticated_redirect(request: Request, destination: str) -> Response:
     settings = _settings(request)
+    _claims, token = _new_browser_session(settings)
+    response = RedirectResponse(destination, status_code=status.HTTP_303_SEE_OTHER)
+    _set_session_cookie(response, settings, token)
+    return response
+
+
+def _new_browser_session(settings: WebSettings) -> tuple[SessionClaims, str]:
+    now = int(time.time())
+    csrf_token = generate_csrf_token()
+    claims = SessionClaims(
+        csrf_token=csrf_token,
+        issued_at=now,
+        expires_at=now + settings.session_ttl_seconds,
+    )
     token = sign_session(
         settings.session_secret,
-        csrf_token=generate_csrf_token(),
+        csrf_token=csrf_token,
+        now=now,
         ttl_seconds=settings.session_ttl_seconds,
     )
-    response = RedirectResponse(destination, status_code=status.HTTP_303_SEE_OTHER)
+    return claims, token
+
+
+def _set_session_cookie(
+    response: Response,
+    settings: WebSettings,
+    token: str,
+) -> None:
     response.set_cookie(
         settings.session_cookie_name,
         token,
@@ -439,7 +483,6 @@ def _authenticated_redirect(request: Request, destination: str) -> Response:
         httponly=True,
         samesite="strict",
     )
-    return response
 
 
 async def _unique_form(request: Request) -> dict[str, str]:
@@ -564,6 +607,7 @@ def _project_id(workspace: ProjectWorkspace) -> int:
 def _base_context(request: Request) -> dict[str, Any]:
     return {
         "request": request,
+        "authentication_enabled": _settings(request).authentication_enabled,
         "project": None,
         "active_page": "",
         "approval_count": 0,

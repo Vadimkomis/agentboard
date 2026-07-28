@@ -9,6 +9,7 @@ Commands:
 from __future__ import annotations
 
 import asyncio
+import secrets
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -145,7 +146,7 @@ def agents(
 
 @app.command("hash-password")
 def hash_password() -> None:
-    """Generate an owner-password hash for the browser UI."""
+    """Generate a hash for optional browser password protection."""
     from agentboard.web import hash_owner_password
 
     password = typer.prompt("Owner password", hide_input=True, confirmation_prompt=True)
@@ -189,6 +190,30 @@ def create_project(
     typer.echo(f"Created {project.key} ({project.name}) in {database_path}")
 
 
+@app.command("seed-demo")
+def seed_demo(
+    db: Annotated[
+        Path | None,
+        typer.Option("--db", help="Browser-v0 SQLite path"),
+    ] = None,
+) -> None:
+    """Create representative data for local browser testing."""
+    from agentboard.domain.errors import DomainError
+    from agentboard.infrastructure.migrations import upgrade_database
+    from agentboard.infrastructure.paths import resolve_database_path
+
+    database_path = resolve_database_path(db)
+    upgrade_database(database_path)
+    try:
+        project = asyncio.run(_seed_browser_demo(database_path))
+    except DomainError as error:
+        typer.echo(error.user_message, err=True)
+        raise typer.Exit(1) from error
+    typer.echo(
+        f"Created {project.key} ({project.name}) with sample browser data in {database_path}"
+    )
+
+
 async def _create_browser_project(
     database_path: Path,
     key: str,
@@ -207,6 +232,17 @@ async def _create_browser_project(
             repository_url=repository_url,
             default_branch=default_branch,
         )
+    finally:
+        await database.dispose()
+
+
+async def _seed_browser_demo(database_path: Path) -> Project:
+    from agentboard.application import SeedDemoWorkspace
+    from agentboard.infrastructure.database import Database
+
+    database = Database(database_path)
+    try:
+        return await SeedDemoWorkspace(database.unit_of_work)()
     finally:
         await database.dispose()
 
@@ -230,7 +266,7 @@ def web(
         typer.Option(
             "--owner-password-hash",
             envvar="AGENTBOARD_OWNER_PASSWORD_HASH",
-            help="PBKDF2 hash; prefer the environment variable",
+            help="Optional PBKDF2 hash that enables login",
         ),
     ] = None,
     session_secret: Annotated[
@@ -238,7 +274,7 @@ def web(
         typer.Option(
             "--session-secret",
             envvar="AGENTBOARD_SESSION_SECRET",
-            help="At least 32 characters; prefer the environment variable",
+            help="Optional persistent session secret of at least 32 characters",
         ),
     ] = None,
     secure_cookies: Annotated[
@@ -246,18 +282,11 @@ def web(
         typer.Option("--secure-cookies", help="Require HTTPS for the session cookie"),
     ] = False,
 ) -> None:
-    """Launch the local, owner-authenticated browser application."""
+    """Launch the local browser application."""
     if host not in {"127.0.0.1", "localhost"}:
         typer.echo(
             "Only 127.0.0.1 or localhost binding is supported in v0. Keep the "
             "loopback default and connect through an SSH tunnel or trusted private proxy.",
-            err=True,
-        )
-        raise typer.Exit(2)
-    if owner_password_hash is None or session_secret is None:
-        typer.echo(
-            "Set AGENTBOARD_OWNER_PASSWORD_HASH and AGENTBOARD_SESSION_SECRET.\n"
-            "Generate the password hash with: agentboard hash-password",
             err=True,
         )
         raise typer.Exit(2)
@@ -269,7 +298,7 @@ def web(
     settings = WebSettings(
         database_path=resolve_database_path(db),
         owner_password_hash=owner_password_hash,
-        session_secret=session_secret,
+        session_secret=session_secret or secrets.token_urlsafe(32),
         allowed_hosts=("localhost", "127.0.0.1"),
         secure_cookies=secure_cookies,
     )

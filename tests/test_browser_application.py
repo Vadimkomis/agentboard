@@ -18,6 +18,7 @@ from agentboard.application import (
     ListProjectBacklog,
     ReorderProjectBacklog,
     ReorderSprintMembership,
+    SeedDemoWorkspace,
     StartSprint,
     _support,
 )
@@ -1376,6 +1377,20 @@ async def test_commit_failure_persists_neither_state_nor_audit_history() -> None
         )
 
     assert factory.store.projects == {}
+    assert factory.store.audit_events == []
+    assert factory.instances[0].rolled_back is True
+
+
+async def test_demo_seed_commit_failure_rolls_back_the_complete_workspace() -> None:
+    factory = FakeUnitOfWorkFactory(fail_commit=True)
+
+    with pytest.raises(RuntimeError, match="injected commit failure"):
+        await SeedDemoWorkspace(factory, fixed_clock)()
+
+    assert factory.store.projects == {}
+    assert factory.store.features == {}
+    assert factory.store.sprints == {}
+    assert factory.store.memberships == {}
     assert factory.store.audit_events == []
     assert factory.instances[0].rolled_back is True
 

@@ -57,7 +57,7 @@
           <a class="all-projects-link" href="/projects">
             {{ icon("projects") }}<span>All projects</span>
           </a>
-          {% if csrf_token %}
+          {% if authentication_enabled and csrf_token %}
             <form action="/logout" method="post" hx-boost="false">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <button class="all-projects-link sidebar-action" type="submit">

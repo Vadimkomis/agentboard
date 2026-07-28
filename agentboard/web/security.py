@@ -30,7 +30,7 @@ class FormDecodeError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class SessionClaims:
-    """Authenticated owner-session claims."""
+    """Signed browser-session claims."""
 
     csrf_token: str
     issued_at: int
@@ -82,7 +82,7 @@ def sign_session(
     now: int | None = None,
     ttl_seconds: int = _DEFAULT_SESSION_TTL_SECONDS,
 ) -> str:
-    """Create a signed, expiring owner-session cookie value."""
+    """Create a signed, expiring browser-session cookie value."""
 
     secret_bytes = _validated_session_secret(secret)
     if not csrf_token:
@@ -101,7 +101,7 @@ def verify_session(
     *,
     now: int | None = None,
 ) -> SessionClaims | None:
-    """Return authenticated session claims, or ``None`` for an invalid cookie."""
+    """Return signed session claims, or ``None`` for an invalid cookie."""
 
     secret_bytes = _validated_session_secret(secret)
     parts = cookie_value.split(".") if cookie_value else []
@@ -125,7 +125,7 @@ def verify_session(
 
 
 def verify_csrf_token(expected: str, submitted: str | None) -> bool:
-    """Compare a submitted form token with authenticated session state."""
+    """Compare a submitted form token with signed browser-session state."""
 
     if not expected or not submitted:
         return False

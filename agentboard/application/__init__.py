@@ -1,6 +1,7 @@
 """Browser-v0 application use cases."""
 
 from agentboard.application.backlogs import ListProjectBacklog, ReorderProjectBacklog
+from agentboard.application.demo import DEMO_PROJECT_KEY, SeedDemoWorkspace
 from agentboard.application.features import CreateFeature
 from agentboard.application.projects import CreateProject, GetProject, ListProjects
 from agentboard.application.sprints import (
@@ -27,6 +28,7 @@ __all__ = [
     "CreateFeature",
     "CreatePlannedSprint",
     "CreateProject",
+    "DEMO_PROJECT_KEY",
     "GetActiveSprint",
     "GetProjectFeature",
     "GetProject",
@@ -42,5 +44,6 @@ __all__ = [
     "presented_engineering_state",
     "ReorderProjectBacklog",
     "ReorderSprintMembership",
+    "SeedDemoWorkspace",
     "StartSprint",
 ]
