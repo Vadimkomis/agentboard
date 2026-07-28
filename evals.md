@@ -81,8 +81,8 @@ pass/fail results; this document does not record transient statuses.
 - Test mapping: `tests/test_browser_views.py` and `tests/test_browser_web.py` cover deterministic completed-Sprint history, empty reports, owner and estimate presentation, and rollover-safe completion-time attribution; partially corresponds to acceptance evals 28 and 29. PR and merge-commit report facts remain deferred with GitHub synchronization.
 
 - Name: Accessible local browser assets
-- Description: Locally served, content-security-policy-compatible assets use the system preference initially, persist owner-selected light or dark mode, and provide responsive navigation, visible semantic states, accessible contrast and targets, and keyboard-operable backlog ordering without a frontend build service.
-- Test mapping: `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests-js/app.test.js` verify local asset delivery, semantic markup, persisted theme selection, non-text contrast, target sizing, interaction helpers, and responsive-navigation behavior; corresponds to acceptance evals 1 and 34.
+- Description: Locally served, content-security-policy-compatible assets use the system preference initially, persist owner-selected light or dark mode, and provide responsive navigation, visible semantic states, accessible contrast and targets, and keyboard-operable backlog ordering without a frontend build service or an unused client framework.
+- Test mapping: `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests-js/app.test.js` verify local asset delivery, absence of the unused HTMX asset and markup, semantic markup, persisted theme selection, non-text contrast, target sizing, interaction helpers, and responsive-navigation behavior; corresponds to acceptance evals 1 and 34.
 
 ## Deferred approved browser v0 evals
 

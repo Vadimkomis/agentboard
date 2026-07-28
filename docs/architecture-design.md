@@ -25,7 +25,7 @@ required.
 
 - Python 3.12
 - FastAPI
-- Jinja2 and HTMX
+- Jinja2 server-rendered HTML and small local JavaScript enhancements
 - SQLAlchemy 2 async
 - SQLite in WAL mode
 - Alembic

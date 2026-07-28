@@ -71,7 +71,6 @@
         method="post"
         data-reorder-form
         data-reorder-enabled="{{ 'true' if mutation_ready else 'false' }}"
-        hx-boost="false"
       >
         {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
         <input type="hidden" name="expected_version" value="{{ expected_version|default(project.version|default('', true), true) }}">

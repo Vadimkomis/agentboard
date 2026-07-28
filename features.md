@@ -436,6 +436,7 @@ Feature: Browser v0 local project workspace
     Given the owner uses a supported browser
     When the system preference supplies the initial appearance or the owner selects light or dark mode
     Then the responsive interface remains keyboard operable and preserves the appearance preference locally
+    And pages load only the local CSS and JavaScript used by the current browser experience
     And the status is "completed"
 
 Feature: Browser v0 GitHub synchronization

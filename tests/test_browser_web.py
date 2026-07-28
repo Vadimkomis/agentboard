@@ -297,7 +297,7 @@ async def test_backlog_renders_current_sprint_before_future_work_without_leakage
 
     assert response.status_code == 200
     assert "data-reorder-form" in response.text
-    assert 'hx-boost="false"' in response.text
+    assert "hx-" not in response.text
     assert response.text.index("Current Sprint") < response.text.index("Future backlog")
     assert "Current sprint item" in response.text
     assert "&lt;Future &amp; safe&gt;" in response.text
@@ -425,7 +425,7 @@ async def test_unknown_or_cross_project_resources_are_not_found(
     assert (await web_client.get("/projects/AB/features/999")).status_code == 404
 
 
-async def test_theme_and_interaction_assets_are_local_and_persisted_in_browser(
+async def test_theme_and_interaction_assets_exclude_unused_htmx(
     web_client: httpx.AsyncClient,
 ) -> None:
     page = await web_client.get("/projects/AB/board")
@@ -435,10 +435,7 @@ async def test_theme_and_interaction_assets_are_local_and_persisted_in_browser(
 
     assert 'data-theme-toggle="true"' in page.text
     assert 'src="/static/app.js"' in page.text
-    assert (
-        """name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false}'"""
-        in page.text
-    )
+    assert "htmx" not in page.text.lower()
     assert "https://unpkg.com" not in page.text
     assert css.status_code == 200
     assert "--page:" in css.text
@@ -451,9 +448,7 @@ async def test_theme_and_interaction_assets_are_local_and_persisted_in_browser(
     assert javascript.status_code == 200
     assert "agentboard-theme" in javascript.text
     assert "localStorage" in javascript.text
-    assert htmx.status_code == 200
-    assert len(htmx.content) > 10_000
-    assert "htmx" in htmx.text
+    assert htmx.status_code == 404
 
 
 async def test_backlog_reorder_requires_csrf_and_persists_exact_future_order(
