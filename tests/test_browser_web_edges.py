@@ -46,6 +46,7 @@ from agentboard.infrastructure.repositories import (
 )
 from agentboard.web import WebSettings, create_app, hash_owner_password
 from agentboard.web import app as web_app
+from agentboard.web.security import SessionClaims
 
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 PASSWORD = "correct-horse-battery-staple"
@@ -581,6 +582,7 @@ def _bare_request(
     *,
     headers: list[tuple[bytes, bytes]] | None = None,
     receive: Any = None,
+    app: object | None = None,
 ) -> Request:
     scope = {
         "type": "http",
@@ -594,7 +596,104 @@ def _bare_request(
         "client": ("127.0.0.1", 1),
         "server": ("testserver", 80),
     }
+    if app is not None:
+        scope["app"] = app
     return Request(scope, receive=receive)
+
+
+def _form_request(app: object, body: bytes) -> Request:
+    messages = [{"type": "http.request", "body": body, "more_body": False}]
+
+    async def receive() -> dict[str, object]:
+        return messages.pop(0)
+
+    return _bare_request(
+        headers=[(b"content-type", b"application/x-www-form-urlencoded")],
+        receive=receive,
+        app=app,
+    )
+
+
+@pytest.mark.asyncio
+async def test_direct_login_and_logout_forms_preserve_session_security(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = create_app(_settings(tmp_path / "direct-session.db"))
+    claims = SessionClaims(csrf_token="direct-csrf", issued_at=1, expires_at=2)
+
+    async def accept_password(_password: str, _encoded: str) -> bool:
+        return True
+
+    monkeypatch.setattr(web_app, "_verify_owner_password_async", accept_password)
+    login = await web_app._login(
+        _form_request(app, b"password=accepted&next=%2Fprojects%2FAB%2Fboard")
+    )
+    logout = await web_app._logout(
+        _form_request(app, b"csrf_token=direct-csrf"),
+        claims,
+    )
+
+    assert login.status_code == 303
+    assert login.headers["location"] == "/projects/AB/board"
+    assert "agentboard_session=" in login.headers["set-cookie"]
+    assert logout.status_code == 303
+    assert logout.headers["location"] == "/login"
+    assert "Max-Age=0" in logout.headers["set-cookie"]
+
+
+@pytest.mark.asyncio
+async def test_direct_form_parsers_accept_exact_values_and_reject_malformed_bodies(
+    tmp_path: Path,
+) -> None:
+    app = create_app(_settings(tmp_path / "direct-forms.db"))
+    accepted = await web_app._reorder_form(
+        _form_request(
+            app,
+            (b"csrf_token=direct-csrf&expected_version=1&idempotency_key=direct&feature_ids=11"),
+        )
+    )
+
+    with pytest.raises(HTTPException) as malformed_unique:
+        await web_app._unique_form(_form_request(app, b"password"))
+    with pytest.raises(HTTPException) as malformed_reorder:
+        await web_app._reorder_form(_form_request(app, b"csrf_token=\xff"))
+
+    assert accepted["feature_ids"] == ["11"]
+    assert malformed_unique.value.status_code == 400
+    assert malformed_reorder.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_direct_reorder_handler_accepts_the_exact_future_backlog(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _project, _future, workspace, _detail, _approval, _report = _view_models()
+    claims = SessionClaims(csrf_token="direct-csrf", issued_at=1, expires_at=2)
+    app = create_app(_settings(tmp_path / "direct-reorder.db"))
+
+    async def load_workspace(_request: Request, _project_key: str) -> ProjectWorkspace:
+        return workspace
+
+    monkeypatch.setattr(web_app, "_workspace", load_workspace)
+    monkeypatch.setattr(web_app, "_uow_factory", lambda _request: object())
+    monkeypatch.setattr(
+        web_app,
+        "ReorderProjectBacklog",
+        lambda _factory: _ImmediateQuery(),
+    )
+    response = await web_app._reorder_backlog(
+        _form_request(
+            app,
+            (b"csrf_token=direct-csrf&expected_version=1&idempotency_key=direct&feature_ids=11"),
+        ),
+        "AB",
+        claims,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/projects/AB/backlog"
 
 
 @pytest.mark.asyncio
