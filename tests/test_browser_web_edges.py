@@ -32,7 +32,11 @@ from agentboard.application.views import (
 )
 from agentboard.domain.entities import ActiveSprint, Feature, Project, Sprint
 from agentboard.domain.enums import EngineeringState, PlanningStage, SprintState
-from agentboard.domain.errors import DuplicateIdentifiersError, PersistenceConflictError
+from agentboard.domain.errors import (
+    DuplicateIdentifiersError,
+    InvalidInputError,
+    PersistenceConflictError,
+)
 from agentboard.infrastructure.database import Database
 from agentboard.infrastructure.migrations import upgrade_database
 from agentboard.infrastructure.orm import (
@@ -619,6 +623,37 @@ async def test_project_creation_rejects_unsupported_malformed_and_ambiguous_form
         missing.status_code,
         ambiguous.status_code,
     ] == [415, 400, 400, 400]
+
+
+@pytest.mark.asyncio
+async def test_direct_project_creation_handler_covers_success_and_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, _future, _workspace, _detail, _approval, _report = _view_models()
+    claims = CsrfSession(csrf_token="direct-csrf", issued_at=1, expires_at=2)
+    app = create_app(_settings(tmp_path / "direct-project.db"))
+    body = (
+        b"csrf_token=direct-csrf&key=AB&name=AgentBoard"
+        b"&repository_url=https%3A%2F%2Fexample.test%2Fagentboard&default_branch=main"
+    )
+
+    monkeypatch.setattr(web_app, "_uow_factory", lambda _request: object())
+    monkeypatch.setattr(web_app, "CreateProject", lambda _factory: _ImmediateQuery(project))
+    created = await web_app._create_project(_form_request(app, body), claims)
+
+    monkeypatch.setattr(
+        web_app,
+        "CreateProject",
+        lambda _factory: _ImmediateQuery(error=InvalidInputError("Invalid Project.")),
+    )
+    monkeypatch.setattr(web_app, "ListProjects", lambda _factory: _ImmediateQuery([]))
+    invalid = await web_app._create_project(_form_request(app, body), claims)
+
+    assert created.status_code == 303
+    assert created.headers["location"] == "/projects/AB/backlog"
+    assert invalid.status_code == 400
+    assert "Invalid Project." in invalid.body.decode()
 
 
 @pytest.mark.asyncio
