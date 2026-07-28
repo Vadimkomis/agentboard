@@ -10,7 +10,40 @@
       <h2>Choose a project</h2>
       <p>Each project keeps its backlog, active sprint, approvals, and history isolated.</p>
     </div>
+    <a class="button button--primary" href="#create-project">Create project</a>
   </div>
+  <section class="project-create" id="create-project" aria-labelledby="create-project-heading">
+    <div class="project-create__copy">
+      <p class="kicker">New workspace</p>
+      <h2 id="create-project-heading">Create project</h2>
+      <p>Add a repository-backed workspace to this local catalog.</p>
+    </div>
+    {% if project_form_error %}
+      <div class="flash flash--error project-create__error" role="alert" data-error-code="{{ project_form_error.code }}">
+        {{ project_form_error.user_message }}
+      </div>
+    {% endif %}
+    <form class="project-create__form" action="/projects" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>
+        <span>Project key</span>
+        <input name="key" value="{{ project_form.key }}" required maxlength="64" autocomplete="off" placeholder="AGENTBOARD">
+      </label>
+      <label>
+        <span>Project name</span>
+        <input name="name" value="{{ project_form.name }}" required autocomplete="organization" placeholder="AgentBoard">
+      </label>
+      <label class="project-create__repository">
+        <span>Repository URL</span>
+        <input name="repository_url" value="{{ project_form.repository_url }}" required inputmode="url" autocomplete="url" placeholder="https://github.com/owner/repository">
+      </label>
+      <label>
+        <span>Default branch</span>
+        <input name="default_branch" value="{{ project_form.default_branch }}" required autocomplete="off">
+      </label>
+      <button class="button button--primary project-create__submit" type="submit">Create project</button>
+    </form>
+  </section>
   {% if projects %}
     <section class="project-grid" aria-label="Projects">
       {% for item in projects %}
@@ -32,8 +65,7 @@
     <div class="empty-state empty-state--large">
       <span class="empty-state__mark" aria-hidden="true">＋</span>
       <h2>No projects yet</h2>
-      <p>Create one with the CLI, then refresh this page:</p>
-      <code>agentboard create-project KEY "Project name" https://github.com/owner/repository</code>
+      <p>Use the form above to create your first local project workspace.</p>
     </div>
   {% endif %}
 {% endblock %}

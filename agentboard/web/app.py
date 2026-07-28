@@ -17,6 +17,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agentboard.application import (
+    CreateProject,
     GetProjectFeature,
     GetProjectWorkspace,
     ListProjectApprovals,
@@ -31,8 +32,10 @@ from agentboard.domain.entities import Feature
 from agentboard.domain.enums import EngineeringState, SprintState
 from agentboard.domain.errors import (
     DomainError,
+    DuplicateProjectKeyError,
     FeatureNotFoundError,
     IdempotencyConflictError,
+    InvalidInputError,
     PersistenceConflictError,
     ProjectNotFoundError,
     StaleRecordVersionError,
@@ -135,6 +138,12 @@ def _register_routes(app: FastAPI) -> None:
     app.add_api_route("/", _root, methods=["GET"], include_in_schema=False)
     app.add_api_route("/projects", _projects, methods=["GET"], response_class=HTMLResponse)
     app.add_api_route(
+        "/projects",
+        _create_project,
+        methods=["POST"],
+        response_class=HTMLResponse,
+    )
+    app.add_api_route(
         "/projects/{project_key}/backlog",
         _backlog,
         methods=["GET"],
@@ -190,13 +199,48 @@ async def _projects(
     request: Request,
     claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
-    projects = await ListProjects(_uow_factory(request))()
+    return await _render_projects(request, claims)
+
+
+async def _create_project(
+    request: Request,
+    claims: Annotated[CsrfSession, Depends(_csrf_session)],
+) -> Response:
+    form = await _urlencoded_form(request)
+    _require_csrf(claims, _single_value(form, "csrf_token"))
+    values = _project_form_values(form)
+    try:
+        project = await CreateProject(_uow_factory(request))(**values)
+    except InvalidInputError as error:
+        return await _render_projects(request, claims, values, error, status.HTTP_400_BAD_REQUEST)
+    except (DuplicateProjectKeyError, PersistenceConflictError) as error:
+        return await _render_projects(request, claims, values, error, status.HTTP_409_CONFLICT)
+    return RedirectResponse(
+        f"/projects/{project.key}/backlog",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
+
+
+async def _render_projects(
+    request: Request,
+    claims: CsrfSession,
+    values: dict[str, str] | None = None,
+    error: DomainError | None = None,
+    status_code: int = status.HTTP_200_OK,
+) -> Response:
     context = {
         **_base_context(request),
         "csrf_token": claims.csrf_token,
-        "projects": projects,
+        "projects": await ListProjects(_uow_factory(request))(),
+        "project_form": values or _empty_project_form(),
+        "project_form_error": error,
     }
-    return _TEMPLATES.TemplateResponse(request, "projects.html", context)
+    return _TEMPLATES.TemplateResponse(
+        request,
+        "projects.html",
+        context,
+        status_code=status_code,
+    )
 
 
 async def _backlog(
@@ -279,7 +323,7 @@ async def _reorder_backlog(
     claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
-    form = await _reorder_form(request)
+    form = await _urlencoded_form(request)
     _require_csrf(claims, _single_value(form, "csrf_token"))
     try:
         feature_ids, expected_version, idempotency_key = _reorder_values(form)
@@ -422,7 +466,7 @@ def _set_session_cookie(
     )
 
 
-async def _reorder_form(request: Request) -> dict[str, list[str]]:
+async def _urlencoded_form(request: Request) -> dict[str, list[str]]:
     _require_form_content_type(request)
     body = await _bounded_body(request)
     try:
@@ -441,6 +485,25 @@ async def _reorder_form(request: Request) -> dict[str, list[str]]:
     for key, value in pairs:
         values.setdefault(key, []).append(value)
     return values
+
+
+def _project_form_values(form: dict[str, list[str]]) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for name in ("key", "name", "repository_url", "default_branch"):
+        value = _single_value(form, name)
+        if value is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+        values[name] = value
+    return values
+
+
+def _empty_project_form() -> dict[str, str]:
+    return {
+        "key": "",
+        "name": "",
+        "repository_url": "",
+        "default_branch": "main",
+    }
 
 
 async def _bounded_body(request: Request) -> bytes:

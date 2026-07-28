@@ -395,6 +395,14 @@ Feature: Browser v0 derived engineering state
 
 Feature: Browser v0 local project workspace
 
+  Scenario: Create a project from the catalog
+    Given the owner is viewing the Projects catalog
+    When the owner submits a valid key, name, repository URL, and default branch
+    Then AgentBoard atomically creates the isolated Project and opens its empty Backlog
+    And invalid or duplicate submissions preserve the entered values and show a safe error
+    And the mutation requires the signed browser CSRF token
+    And the status is "completed"
+
   Scenario: Login-free loopback browser
     Given AgentBoard is bound to a supported loopback address
     When AgentBoard serves the browser application on a loopback address

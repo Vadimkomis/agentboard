@@ -550,11 +550,11 @@ def test_missing_csrf_middleware_state_fails_explicitly() -> None:
 
 
 @pytest.mark.asyncio
-async def test_direct_reorder_form_parser_accepts_exact_values_and_rejects_malformed_bodies(
+async def test_direct_urlencoded_form_parser_accepts_exact_values_and_rejects_malformed_bodies(
     tmp_path: Path,
 ) -> None:
     app = create_app(_settings(tmp_path / "direct-forms.db"))
-    accepted = await web_app._reorder_form(
+    accepted = await web_app._urlencoded_form(
         _form_request(
             app,
             (b"csrf_token=direct-csrf&expected_version=1&idempotency_key=direct&feature_ids=11"),
@@ -562,7 +562,7 @@ async def test_direct_reorder_form_parser_accepts_exact_values_and_rejects_malfo
     )
 
     with pytest.raises(HTTPException) as malformed_reorder:
-        await web_app._reorder_form(_form_request(app, b"csrf_token=\xff"))
+        await web_app._urlencoded_form(_form_request(app, b"csrf_token=\xff"))
 
     assert accepted["feature_ids"] == ["11"]
     assert malformed_reorder.value.status_code == 400
@@ -580,6 +580,45 @@ async def test_backlog_reorder_rejects_unsupported_content_type(tmp_path: Path) 
         )
 
     assert response.status_code == 415
+
+
+@pytest.mark.asyncio
+async def test_project_creation_rejects_unsupported_malformed_and_ambiguous_forms(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "invalid-project-forms.db"
+    await _seed_browser(path)
+
+    async with _web_client(path) as client:
+        catalog = await client.get("/projects")
+        csrf = _hidden_value(catalog.text, "csrf_token")
+        unsupported = await client.post("/projects", content=b"key=NEW")
+        malformed = await client.post(
+            "/projects",
+            content=b"csrf_token=%FF",
+            headers={"content-type": "application/x-www-form-urlencoded"},
+        )
+        missing = await client.post(
+            "/projects",
+            content=f"csrf_token={csrf}",
+            headers={"content-type": "application/x-www-form-urlencoded"},
+        )
+        ambiguous = await client.post(
+            "/projects",
+            content=(
+                f"csrf_token={csrf}&key=ONE&key=TWO&name=Ambiguous"
+                "&repository_url=https%3A%2F%2Fexample.test%2Frepository"
+                "&default_branch=main"
+            ),
+            headers={"content-type": "application/x-www-form-urlencoded"},
+        )
+
+    assert [
+        unsupported.status_code,
+        malformed.status_code,
+        missing.status_code,
+        ambiguous.status_code,
+    ] == [415, 400, 400, 400]
 
 
 @pytest.mark.asyncio

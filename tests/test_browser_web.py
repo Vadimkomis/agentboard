@@ -290,6 +290,93 @@ async def test_project_selector_is_deterministic_and_links_scoped_routes(
     assert 'href="/projects/TJ/backlog"' in response.text
 
 
+async def test_project_catalog_exposes_creation_form_and_creates_project(
+    web_client: httpx.AsyncClient,
+) -> None:
+    catalog = await web_client.get("/projects")
+    csrf = _hidden_value(catalog.text, "csrf_token")
+
+    created = await web_client.post(
+        "/projects",
+        data={
+            "csrf_token": csrf,
+            "key": "NEW",
+            "name": "New Project",
+            "repository_url": "https://github.com/example/new-project",
+            "default_branch": "main",
+        },
+        follow_redirects=False,
+    )
+    backlog = await web_client.get("/projects/NEW/backlog")
+    refreshed_catalog = await web_client.get("/projects")
+
+    assert 'action="/projects"' in catalog.text
+    assert 'name="key"' in catalog.text
+    assert 'name="name"' in catalog.text
+    assert 'name="repository_url"' in catalog.text
+    assert 'name="default_branch"' in catalog.text
+    assert "Create project" in catalog.text
+    assert created.status_code == 303
+    assert created.headers["location"] == "/projects/NEW/backlog"
+    assert backlog.status_code == 200
+    assert "No sprint is active for this project" in backlog.text
+    assert "New Project" in refreshed_catalog.text
+
+
+async def test_project_creation_requires_csrf(web_client: httpx.AsyncClient) -> None:
+    await web_client.get("/projects")
+
+    rejected = await web_client.post(
+        "/projects",
+        data={
+            "key": "NO-CSRF",
+            "name": "Rejected Project",
+            "repository_url": "https://github.com/example/rejected",
+            "default_branch": "main",
+        },
+    )
+    catalog = await web_client.get("/projects")
+
+    assert rejected.status_code == 403
+    assert "Rejected Project" not in catalog.text
+
+
+async def test_project_creation_renders_validation_and_duplicate_errors(
+    web_client: httpx.AsyncClient,
+) -> None:
+    catalog = await web_client.get("/projects")
+    csrf = _hidden_value(catalog.text, "csrf_token")
+
+    invalid = await web_client.post(
+        "/projects",
+        data={
+            "csrf_token": csrf,
+            "key": "INVALID/KEY",
+            "name": "<Unsafe name>",
+            "repository_url": "https://github.com/example/invalid",
+            "default_branch": "main",
+        },
+    )
+    duplicate = await web_client.post(
+        "/projects",
+        data={
+            "csrf_token": csrf,
+            "key": "AB",
+            "name": "Duplicate",
+            "repository_url": "https://github.com/example/duplicate",
+            "default_branch": "main",
+        },
+    )
+
+    assert invalid.status_code == 400
+    assert "letters, numbers, hyphens, and underscores" in invalid.text
+    assert 'value="INVALID/KEY"' in invalid.text
+    assert 'value="&lt;Unsafe name&gt;"' in invalid.text
+    assert "<Unsafe name>" not in invalid.text
+    assert duplicate.status_code == 409
+    assert "Project key &#39;AB&#39; already exists." in duplicate.text
+
+
 async def test_backlog_renders_current_sprint_before_future_work_without_leakage(
     web_client: httpx.AsyncClient,
 ) -> None:

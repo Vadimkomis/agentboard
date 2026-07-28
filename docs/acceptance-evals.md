@@ -93,28 +93,32 @@ Status: Approved
 34. Light and dark modes are accessible and persist across sessions.
 35. Browser refresh reconstructs the page from SQLite without inventing or
     losing state.
-36. State-changing requests require a signed browser session, CSRF protection,
-    idempotency, and the expected record version; the loopback browser exposes
-    no password-authentication surface.
+36. State-changing requests require a signed browser session and CSRF
+    protection; mutations of existing versioned or ranked records additionally
+    require idempotency and the expected record version, and the loopback
+    browser exposes no password-authentication surface.
+37. The Projects catalog creates one isolated Project from a bounded,
+    CSRF-protected form and opens its Backlog; invalid, ambiguous, duplicate, or
+    conflicting submissions create nothing and render a safe error.
 
 ## Human-attention notifications
 
-37. A Feature entering Human Review creates exactly one durable notification
+38. A Feature entering Human Review creates exactly one durable notification
     delivery for its exact PR head and configured destination.
-38. The notification identifies the project, Feature, PR, exact head revision,
+39. The notification identifies the project, Feature, PR, exact head revision,
     and review URL without containing repository credentials or application
     secrets.
-39. Phone notifications cannot be enabled without a configured review base URL
+40. Phone notifications cannot be enabled without a configured review base URL
     that is reachable from the phone through a trusted private connection.
-40. Duplicate reconciliation for the same head does not create or send another
+41. Duplicate reconciliation for the same head does not create or send another
     notification; a later validated head may create its own delivery.
-41. A transient delivery failure is recorded and retried without changing the
+42. A transient delivery failure is recorded and retried without changing the
     Feature's engineering state or losing the pending notification.
-42. In the dogfood flow, the configured endpoint delivers one phone notification
+43. In the dogfood flow, the configured endpoint delivers one phone notification
     to the owner, and its review link opens the matching Human Review action.
 
 ## Release threshold
 
-All 42 assertions must pass, one real Feature must travel from Backlog through a
+All 43 assertions must pass, one real Feature must travel from Backlog through a
 merged PR, its Human Review transition must notify the owner's phone, and the
 owner must approve the release candidate.

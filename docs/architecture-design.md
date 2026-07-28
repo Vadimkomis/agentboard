@@ -249,6 +249,10 @@ Each selected Project has three primary pages:
    labeled Board only when no Sprint is active.
 3. **Approvals** — design and PR decisions waiting for the owner.
 
+The Projects catalog creates an isolated Project through the same atomic
+application command as the CLI, with bounded form parsing, CSRF validation, and
+typed validation or conflict errors.
+
 Backlog keeps completed current-Sprint work in its compact Done section. The
 Sprint view combines merge-ready and completed work in its Done column.
 Completed sprints and Features are available through project Reports and are

@@ -48,9 +48,13 @@ pass/fail results; this document does not record transient statuses.
 
 ## Browser v0 application
 
+- Name: Browser Project creation
+- Description: The Projects catalog accepts a Project key, display name, repository URL, and default branch; valid CSRF-protected submissions atomically create one isolated Project and open its Backlog, while invalid, ambiguous, duplicate, or conflicting submissions create nothing and return a safe form error.
+- Test mapping: `tests/test_browser_web.py` and `tests/test_browser_web_edges.py` cover form availability, successful redirect and persistence, CSRF rejection, escaped value preservation, typed validation, duplicate-key conflicts, bounded parsing, and ambiguous fields; corresponds to acceptance eval 37.
+
 - Name: Login-free loopback browser boundary
 - Description: Project routes always open without authentication on supported loopback bindings; no password-authentication surface exists, while signed CSRF sessions, session expiry, bounded mutation-form parsing, strict cookies, host checks, and browser security headers protect mutations and the local application boundary.
-- Test mapping: `tests/test_web_security.py`, `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests/test_browser_cli.py` cover automatic CSRF sessions, absent authentication commands and routes, security primitives, and rejection of direct non-loopback serving; corresponds to acceptance eval 36.
+- Test mapping: `tests/test_web_security.py`, `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests/test_browser_cli.py` cover automatic CSRF sessions, absent authentication commands and routes, security primitives, and rejection of direct non-loopback serving; corresponds to acceptance evals 36 and 37.
 
 - Name: Representative local demo workspace
 - Description: One command atomically creates a dedicated DEMO Project with a completed Sprint report, an active Sprint spanning every durable engineering state, reorderable future work, Feature history, and approval-attention examples without altering other Projects or replacing an existing DEMO Project.
