@@ -407,22 +407,25 @@ Feature: Browser v0 local project workspace
   Scenario: Seed a representative local workspace
     Given the selected SQLite database does not contain a DEMO Project
     When the owner runs the demo seed command
-    Then AgentBoard atomically creates representative Backlog, Board, Feature detail, Approvals, and Reports data
+    Then AgentBoard atomically creates representative Backlog, Sprint, Feature detail, Approvals, and Reports data
     And a repeated seed refuses to modify the existing DEMO Project
     And the status is "completed"
 
   Scenario: Render project-scoped browser views
     Given the persistence foundation contains durable Project, Feature, Sprint, and audit records
     When the owner opens a project in the browser
-    Then Backlog, Board, Feature detail, Approvals, and Reports show only the selected Project's durable state
-    And the Board has exactly five active-work columns with completed current-Sprint Features in a separate Done section
+    Then Backlog, Sprint, Feature detail, Approvals, and Reports show only the selected Project's durable state
+    And the active Sprint view has Ready for Engineering, Working, In Review, Human Review, and Done columns
+    And Done combines merge-ready and completed current-Sprint Features without changing their durable states
+    And the same route is labeled Board only when no Sprint is active
     And an approved active-Sprint Feature without a later recorded state is consistently presented as Ready for Engineering
     And the status is "completed"
 
   Scenario: Reorder the exact future backlog
     Given the owner is viewing the current version of a Project's future backlog
     When the owner drags a row or uses its reorder controls
-    Then only the exact future-backlog set is reordered atomically with CSRF, idempotency, and expected-version protection
+    Then each reorderable row exposes a working drag handle
+    And only the exact future-backlog set is reordered atomically with CSRF, idempotency, and expected-version protection
     And stale, conflicting, or invalid submissions preserve the current durable order
     And the status is "completed"
 

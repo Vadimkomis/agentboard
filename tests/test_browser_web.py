@@ -297,6 +297,8 @@ async def test_backlog_renders_current_sprint_before_future_work_without_leakage
 
     assert response.status_code == 200
     assert "data-reorder-form" in response.text
+    assert 'data-reorder-enabled="true"' in response.text
+    assert response.text.count('data-drag-handle draggable="true"') == 2
     assert "hx-" not in response.text
     assert response.text.index("Current Sprint") < response.text.index("Future backlog")
     assert "Current sprint item" in response.text
@@ -306,9 +308,22 @@ async def test_backlog_renders_current_sprint_before_future_work_without_leakage
     assert "PROJECT_B_MUST_NOT_LEAK" not in response.text
 
 
-async def test_board_has_exactly_five_ordered_columns_and_separate_done(
+async def test_active_sprint_uses_sprint_label_and_combines_merge_ready_with_done(
     web_client: httpx.AsyncClient,
+    seeded_web_path: Path,
 ) -> None:
+    database = Database(seeded_web_path)
+    try:
+        async with database.session() as session:
+            await session.execute(
+                update(FeatureRecord)
+                .where(FeatureRecord.id == 2)
+                .values(engineering_state=EngineeringState.ready_to_merge.value)
+            )
+            await session.commit()
+    finally:
+        await database.dispose()
+
     response = await web_client.get("/projects/AB/board")
 
     assert response.status_code == 200
@@ -317,13 +332,21 @@ async def test_board_has_exactly_five_ordered_columns_and_separate_done(
         "working",
         "in_review",
         "human_review",
-        "ready_to_merge",
+        "done",
     ]
     positions = [response.text.index(f'data-board-column="{state}"') for state in states]
+    done_column = response.text.split('data-board-column="done"', 1)[1]
     assert positions == sorted(positions)
     assert response.text.count("data-board-column=") == 5
-    assert 'data-completed-section="true"' in response.text
-    assert "Done this sprint" in response.text
+    assert 'data-board-column="ready_to_merge"' not in response.text
+    assert 'data-completed-section="true"' not in response.text
+    assert "Current sprint item" in done_column
+    assert "Done this sprint" in done_column
+    assert "<title>Sprint · AgentBoard · AgentBoard</title>" in response.text
+    assert "<h1>Sprint</h1>" in response.text
+    assert "<span>Sprint</span>" in response.text
+    assert "<h1>Board</h1>" not in response.text
+    assert "<span>Board</span>" not in response.text
     assert "PROJECT_B_MUST_NOT_LEAK" not in response.text
 
 
@@ -343,11 +366,13 @@ async def test_active_sprint_default_state_is_consistent_across_browser_views(
     assert "Ready for Engineering" in backlog_row
     assert "Current sprint item" in ready_column
     assert '<span class="detail-state">Ready for Engineering</span>' in detail.text
+    assert "<span>Sprint</span>" in backlog.text
+    assert "<span>Sprint</span>" in detail.text
     assert "Second future item" not in board.text
     assert "Ready for sprint" in future_detail.text
 
 
-async def test_completion_timestamp_moves_active_sprint_work_to_compact_done(
+async def test_completion_timestamp_moves_active_sprint_work_to_done_column(
     web_client: httpx.AsyncClient,
     seeded_web_path: Path,
 ) -> None:
@@ -368,9 +393,8 @@ async def test_completion_timestamp_moves_active_sprint_work_to_compact_done(
     board = await web_client.get("/projects/AB/board")
     backlog = await web_client.get("/projects/AB/backlog")
 
-    assert board.text.index("Current sprint item") > board.text.index(
-        'data-completed-section="true"'
-    )
+    assert board.text.index("Current sprint item") > board.text.index('data-board-column="done"')
+    assert 'data-completed-section="true"' not in board.text
     assert backlog.text.index("Current sprint item") > backlog.text.index(
         'data-completed-section="true"'
     )

@@ -158,11 +158,13 @@ The engineering state is derived:
   running, or validation ended in an infrastructure or protocol error requiring
   attention.
 - **Human Review:** checks and validation pass for the exact PR head.
-- **Ready to Merge:** exact head approved and currently mergeable.
-- **Done:** GitHub confirms merge; shown in the active sprint's compact
-  completed section until the sprint closes.
+- **Ready to Merge:** exact head approved and currently mergeable; shown in the
+  Sprint view's Done column.
+- **Done:** GitHub confirms merge; remains in the Sprint view's Done column
+  until the sprint closes.
 
-Done is terminal. It is not a sixth work-in-progress column.
+Done is terminal. Ready to Merge and Done remain distinct durable states even
+though the Sprint view groups both in one column.
 
 Closing a sprint:
 
@@ -243,12 +245,14 @@ OpenClaw uses WhatsApp, a native push provider, or another phone channel.
 Each selected Project has three primary pages:
 
 1. **Backlog** — Current Sprint followed by future ranked Features.
-2. **Board** — five engineering columns for the Current Sprint.
+2. **Sprint** — five engineering columns for the Current Sprint; the route is
+   labeled Board only when no Sprint is active.
 3. **Approvals** — design and PR decisions waiting for the owner.
 
-The active sprint and board each include a compact Done section. Completed
-sprints and Features are available through project Reports and are excluded
-from standard active views.
+Backlog keeps completed current-Sprint work in its compact Done section. The
+Sprint view combines merge-ready and completed work in its Done column.
+Completed sprints and Features are available through project Reports and are
+excluded from standard active views.
 
 A Feature opens one detail view. Light/dark mode is available from the top-right
 button and stored in the browser.
@@ -279,7 +283,7 @@ configured root.
 4. Independent-validator persistence, execution, and state derivation.
 5. Durable Human Review notifications and OpenClaw dogfood delivery.
 6. Login-free loopback browser security and shell with signed CSRF sessions.
-7. Backlog, Board, Feature detail, Approvals, and project Reports.
+7. Backlog, Sprint, Feature detail, Approvals, and project Reports.
 8. Serial engineering execution.
 9. macOS and Linux deployment, backup, and restore.
 

@@ -56,7 +56,7 @@ _BOARD_STATES = (
     EngineeringState.working,
     EngineeringState.in_review,
     EngineeringState.human_review,
-    EngineeringState.ready_to_merge,
+    EngineeringState.done,
 )
 _FORM_CONTENT_TYPE = "application/x-www-form-urlencoded"
 _MAX_FORM_BYTES = 16_384
@@ -215,9 +215,9 @@ async def _board(
     claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
     workspace = await _workspace(request, project_key)
-    columns, done = _board_features(workspace)
+    columns, _done = _board_features(workspace)
     context = await _workspace_context(request, workspace, claims, "board")
-    context.update({"board_columns": columns, "done_features": done})
+    context["board_columns"] = columns
     return _TEMPLATES.TemplateResponse(request, "board.html", context)
 
 
@@ -228,6 +228,7 @@ async def _feature_detail(
     claims: Annotated[CsrfSession, Depends(_csrf_session)],
 ) -> Response:
     factory = _uow_factory(request)
+    workspace = await _workspace(request, project_key)
     detail = await GetProjectFeature(factory)(
         project_key=project_key,
         feature_number=feature_number,
@@ -240,6 +241,7 @@ async def _feature_detail(
             detail.sprint is not None and detail.sprint.state is SprintState.active
         ),
         "approval_count": len(approvals),
+        "board_label": "Sprint" if workspace.active_sprint else "Board",
         "csrf_token": claims.csrf_token,
         "detail": detail,
         "project": detail.project,
@@ -318,6 +320,7 @@ async def _workspace_context(
         "active_page": active_page,
         "active_features": active_features,
         "active_sprint": workspace.active_sprint,
+        "board_label": "Sprint" if workspace.active_sprint else "Board",
         "approval_count": len(approvals),
         "csrf_token": claims.csrf_token,
         "expected_version": workspace.project.version,
@@ -336,8 +339,10 @@ def _board_features(
     features = workspace.active_sprint.features if workspace.active_sprint else ()
     for feature in features:
         state = presented_engineering_state(feature, in_active_sprint=True)
-        if state is EngineeringState.done:
+        if _is_completed(feature):
             done.append(feature)
+        if state in (EngineeringState.ready_to_merge, EngineeringState.done):
+            columns[EngineeringState.done.value].append(feature)
             continue
         assert state is not None
         columns[state.value].append(feature)
@@ -527,6 +532,7 @@ def _base_context(request: Request) -> dict[str, Any]:
         "project": None,
         "active_page": "",
         "approval_count": 0,
+        "board_label": "Board",
         "csrf_token": None,
         "flash": None,
     }

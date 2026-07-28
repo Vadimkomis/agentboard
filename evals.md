@@ -53,24 +53,24 @@ pass/fail results; this document does not record transient statuses.
 - Test mapping: `tests/test_web_security.py`, `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests/test_browser_cli.py` cover automatic CSRF sessions, absent authentication commands and routes, security primitives, and rejection of direct non-loopback serving; corresponds to acceptance eval 36.
 
 - Name: Representative local demo workspace
-- Description: One command atomically creates a dedicated DEMO Project with a completed Sprint report, an active Sprint spanning all Board states plus Done, reorderable future work, Feature history, and approval-attention examples without altering other Projects or replacing an existing DEMO Project.
+- Description: One command atomically creates a dedicated DEMO Project with a completed Sprint report, an active Sprint spanning every durable engineering state, reorderable future work, Feature history, and approval-attention examples without altering other Projects or replacing an existing DEMO Project.
 - Test mapping: `tests/test_browser_cli.py` seeds a file-backed SQLite database, renders every browser view without login, verifies representative content, and proves a repeated seed leaves the exact dataset unchanged.
 
 - Name: Project-scoped browser navigation
-- Description: The Project selector and every Project route render only the selected Project's durable records; unknown and cross-Project Feature URLs do not expose another Project.
-- Test mapping: `tests/test_browser_views.py`, `tests/test_browser_web.py`, and `tests/test_browser_web_edges.py` cover deterministic Project selection, page navigation, empty states, escaped content, typed not-found behavior, and isolation; corresponds to acceptance evals 4 and 35.
+- Description: The Project selector and every Project route render only the selected Project's durable records; the engineering route is labeled Sprint while a Sprint is active and Board otherwise; unknown and cross-Project Feature URLs do not expose another Project.
+- Test mapping: `tests/test_browser_views.py`, `tests/test_browser_web.py`, and `tests/test_browser_web_edges.py` cover deterministic Project selection, context-sensitive navigation labels, page navigation, empty states, escaped content, typed not-found behavior, and isolation; corresponds to acceptance evals 4 and 35.
 
 - Name: Current Sprint and future-backlog presentation
 - Description: Backlog renders Current Sprint above the ranked future backlog; completed current-Sprint Features appear in a separate Done section, and future work remains disjoint from active Sprint membership and completed work.
 - Test mapping: `tests/test_browser_views.py` and `tests/test_browser_web.py` compare persisted read models with rendered Current Sprint, future backlog, and Done content; corresponds to acceptance evals 7, 8, 26, 27, and 35.
 
 - Name: Exact future-backlog browser reordering
-- Description: Drag and keyboard controls submit only the exact current future-backlog set with CSRF, an idempotency key, and the expected Project version; successful order persists while malformed, stale, conflicting, or cross-boundary submissions preserve durable state.
-- Test mapping: `tests/test_browser_views.py`, `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests-js/app.test.js` cover order serialization, rank-only persistence, replay, optimistic concurrency, conflict rendering, invalid forms, and interaction helpers; corresponds to acceptance evals 6, 9, and 36.
+- Description: Explicit native drag handles and keyboard controls submit only the exact current future-backlog set with CSRF, an idempotency key, and the expected Project version; successful order persists while malformed, stale, conflicting, or cross-boundary submissions preserve durable state.
+- Test mapping: `tests/test_browser_views.py`, `tests/test_browser_web.py`, `tests/test_browser_web_edges.py`, and `tests-js/app.test.js` cover draggable markup, order serialization, rank-only persistence, replay, optimistic concurrency, conflict rendering, invalid forms, and interaction helpers; corresponds to acceptance evals 6, 9, and 36.
 
-- Name: Five-column engineering board
-- Description: Only current-Sprint work appears in exactly Ready for Engineering, Working, In Review, Human Review, and Ready to Merge columns; the shared read-model resolver presents approved active-Sprint work with no later state as initial Ready for Engineering, and completed work appears separately in Done.
-- Test mapping: `tests/test_browser_views.py` and `tests/test_browser_web.py` assert the resolver's durable-fact rules, column names and order, consistent Backlog/Board/detail presentation, Project isolation, explicit-state precedence, future-work exclusion, and both durable completion signals; corresponds to acceptance evals 11, 12, and 26.
+- Name: Five-column Sprint view
+- Description: Only current-Sprint work appears in exactly Ready for Engineering, Working, In Review, Human Review, and Done columns; Done groups merge-ready and completed Features without changing their durable states, and the shared resolver presents approved active-Sprint work with no later state as initial Ready for Engineering.
+- Test mapping: `tests/test_browser_views.py` and `tests/test_browser_web.py` assert the resolver's durable-fact rules, column names and order, merge-ready/completed grouping, consistent Backlog/Sprint/detail presentation, Project isolation, explicit-state precedence, future-work exclusion, and both durable completion signals; corresponds to acceptance evals 11, 12, and 26.
 
 - Name: Feature detail and approval attention
 - Description: Feature detail renders durable Feature, active-Sprint-preferred membership, design-approval, and audit facts; Approvals surfaces only non-completed design-review and Human Review attention without fabricating an immutable revision or actionable consent.

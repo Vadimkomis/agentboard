@@ -9,7 +9,8 @@ AgentBoard currently has two local interfaces:
 - The legacy Textual TUI supports PRD refinement, agent execution, testing, and
   shipping.
 - The browser application provides Projects, a ranked future backlog, Current
-  Sprint, a five-column engineering board with a separate Done section, Feature
+  Sprint, a five-column Sprint view whose Done column includes merge-ready and
+  completed work, Feature
   detail, Approvals, and completed-Sprint Reports. It renders the durable state
   already stored in SQLite.
 
@@ -81,10 +82,11 @@ agentboard web --db "$AGENTBOARD_DB_PATH"
 ```
 
 Open [http://127.0.0.1:8000](http://127.0.0.1:8000) and select `DEMO`.
-The demo includes an active Sprint across all five Board states, Current Sprint
-Done, three reorderable future-backlog items, Feature history, design and Human
-Review attention, and a completed-Sprint report. Seeding is atomic and refuses
-to alter an existing `DEMO` Project; choose a new database path for a fresh copy.
+The demo includes an active Sprint across every durable engineering state, a
+combined Done column, three reorderable future-backlog items, Feature history,
+design and Human Review attention, and a completed-Sprint report. Seeding is
+atomic and refuses to alter an existing `DEMO` Project; choose a new database
+path for a fresh copy.
 
 To create an empty Project instead:
 
@@ -140,7 +142,7 @@ python3 -m pytest \
 
 It verifies login-free local access, absent authentication routes, atomic demo
 seeding, project isolation, exact page content, security headers and CSRF, five
-ordered Board columns plus Done, Feature
+ordered Sprint columns ending in combined Done, Feature
 details, non-actionable approval attention when an immutable revision is
 unavailable, completed-Sprint Reports, durable/idempotent backlog reordering,
 stale-version conflicts, and empty/error states.

@@ -40,7 +40,7 @@
               {{ icon("backlog") }}<span>Backlog</span>
             </a>
             <a href="/projects/{{ project.key|urlencode }}/board" {% if active_page == "board" %}aria-current="page"{% endif %}>
-              {{ icon("board") }}<span>Board</span>
+              {{ icon("board") }}<span>{{ board_label|default("Board", true) }}</span>
             </a>
             <a href="/projects/{{ project.key|urlencode }}/approvals" {% if active_page == "approvals" %}aria-current="page"{% endif %}>
               {{ icon("approvals") }}<span>Approvals</span>

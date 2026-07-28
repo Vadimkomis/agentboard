@@ -500,6 +500,9 @@ async def test_empty_catalog_and_project_without_a_sprint_render_valid_empty_sta
     assert "No sprint is active for this project" in backlog.text
     assert board.text.count("data-board-column=") == 5
     assert "No work in this state" in board.text
+    assert "<title>Board · AgentBoard · AgentBoard</title>" in board.text
+    assert "<h1>Board</h1>" in board.text
+    assert "<span>Board</span>" in board.text
 
 
 def _bare_request(

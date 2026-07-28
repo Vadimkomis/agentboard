@@ -94,11 +94,10 @@
     class="feature-row"
     data-feature-id="{{ feature.id }}"
     data-feature-number="{{ feature.number }}"
-    {% if reorder %}draggable="{{ 'true' if can_reorder else 'false' }}"{% endif %}
   >
     {% if reorder %}
       <div class="rank-controls" aria-label="Reorder {{ feature_key(project, feature)|trim }}">
-        <span class="drag-handle" aria-hidden="true" title="{{ 'Drag to reorder' if can_reorder else 'Reordering unavailable' }}">
+        <span class="drag-handle" data-drag-handle draggable="{{ 'true' if can_reorder else 'false' }}" aria-hidden="true" title="{{ 'Drag to reorder' if can_reorder else 'Reordering unavailable' }}">
           <i></i><i></i><i></i><i></i><i></i><i></i>
         </span>
         <div class="rank-buttons">

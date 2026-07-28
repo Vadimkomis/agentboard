@@ -28,12 +28,14 @@ Status: Approved
 10. Moving a Feature to Ready for Engineering fails unless its exact design
     revision is approved.
 
-## Engineering board
+## Sprint view
 
-11. The board has exactly five columns: Ready for Engineering, Working, In
-    Review, Human Review, and Ready to Merge.
-12. The board and Current Sprint list show the same sprint membership and
-    engineering state.
+11. The active Sprint view has exactly five columns: Ready for Engineering,
+    Working, In Review, Human Review, and Done; Done includes both merge-ready
+    and completed Features without changing their durable states.
+12. The Sprint view and Current Sprint list show the same sprint membership and
+    engineering state; the engineering route is labeled Board only when no
+    Sprint is active.
 13. Starting engineering creates and binds exactly one primary draft PR.
 14. Only one Feature per project may have an active engineering execution.
 

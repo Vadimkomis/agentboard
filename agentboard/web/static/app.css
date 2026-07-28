@@ -578,7 +578,7 @@ svg {
   background: currentColor;
 }
 
-[draggable="false"] .drag-handle {
+.drag-handle[draggable="false"] {
   cursor: not-allowed;
   opacity: .35;
 }
@@ -900,22 +900,6 @@ svg {
   padding: 16px 8px;
   font-size: 10px;
   text-align: center;
-}
-
-.completed-section {
-  margin-top: 25px;
-  border-top: 1px solid var(--border);
-  padding-top: 22px;
-}
-
-.done-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 9px;
-}
-
-.done-grid .board-card {
-  border-left: 2px solid var(--accent);
 }
 
 .project-grid {
