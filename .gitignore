@@ -38,5 +38,10 @@ htmlcov/
 .coverage
 coverage.xml
 
+# Local AgentBoard runtime data
+*.db
+*.db-shm
+*.db-wal
+
 # Logs
 *.log

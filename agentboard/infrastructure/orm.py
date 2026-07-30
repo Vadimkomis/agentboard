@@ -20,18 +20,22 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class BrowserBase(DeclarativeBase):
-    """Declarative base kept separate from the legacy Story/Ticket metadata."""
+    """Declarative base for AgentBoard browser records."""
 
 
 class ProjectRecord(BrowserBase):
     __tablename__ = "projects"
-    __table_args__ = (UniqueConstraint("key", name="uq_projects_key"),)
+    __table_args__ = (
+        CheckConstraint("version > 0", name="ck_projects_version_positive"),
+        UniqueConstraint("key", name="uq_projects_key"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     key: Mapped[str] = mapped_column(String(64), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     repository_url: Mapped[str] = mapped_column(String(2048), nullable=False)
     default_branch: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("1"))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
@@ -164,6 +168,30 @@ class AuditEventRecord(BrowserBase):
     )
     event_type: Mapped[str] = mapped_column("type", String(100), nullable=False)
     payload: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
+
+
+class CommandReceiptRecord(BrowserBase):
+    __tablename__ = "command_receipts"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "idempotency_key",
+            name="uq_command_receipts_project_key",
+        ),
+        Index("ix_command_receipts_project_created_at", "project_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    command_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    result: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )

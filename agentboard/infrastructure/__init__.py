@@ -1,4 +1,4 @@
-"""Browser-v0 infrastructure adapters isolated from the legacy TUI."""
+"""Infrastructure adapters for the local browser application."""
 
 from agentboard.infrastructure.database import Database
 from agentboard.infrastructure.migrations import (

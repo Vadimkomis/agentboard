@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% from "macros.html" import icon %}
+{% block title %}Projects · AgentBoard{% endblock %}
+{% block eyebrow %}Private workspace{% endblock %}
+{% block page_title %}Projects{% endblock %}
+{% block content %}
+  <div class="content-header">
+    <div>
+      <p class="kicker">Your workspaces</p>
+      <h2>Choose a project</h2>
+      <p>Each project keeps its backlog, active sprint, approvals, and history isolated.</p>
+    </div>
+  </div>
+  <details class="project-create" data-project-create-disclosure{% if project_form_error %} open{% endif %}>
+    <summary class="project-create__toggle" aria-label="Add project" title="Add project">
+      <span aria-hidden="true">+</span>
+    </summary>
+    <div class="project-create__fields" data-project-create-fields>
+      <div class="project-create__copy">
+        <p class="kicker">New workspace</p>
+        <h2 id="create-project-heading">Create project</h2>
+        <p>Add a repository-backed workspace to this local catalog.</p>
+      </div>
+      {% if project_form_error %}
+        <div class="flash flash--error project-create__error" role="alert" data-error-code="{{ project_form_error.code }}">
+          {{ project_form_error.user_message }}
+        </div>
+      {% endif %}
+      <form class="project-create__form" action="/projects" method="post" aria-labelledby="create-project-heading">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>
+          <span>Project key</span>
+          <input name="key" value="{{ project_form.key }}" required maxlength="64" autocomplete="off" placeholder="AGENTBOARD">
+        </label>
+        <label>
+          <span>Project name</span>
+          <input name="name" value="{{ project_form.name }}" required autocomplete="organization" placeholder="AgentBoard">
+        </label>
+        <label class="project-create__repository">
+          <span>Repository URL</span>
+          <input name="repository_url" value="{{ project_form.repository_url }}" required inputmode="url" autocomplete="url" placeholder="https://github.com/owner/repository">
+        </label>
+        <label>
+          <span>Default branch</span>
+          <input name="default_branch" value="{{ project_form.default_branch }}" required autocomplete="off">
+        </label>
+        <button class="button button--primary project-create__submit" type="submit">Create project</button>
+      </form>
+    </div>
+  </details>
+  {% if projects %}
+    <section class="project-grid" aria-label="Projects">
+      {% for item in projects %}
+        <article class="project-card">
+          <div class="project-card__top">
+            <span class="project-avatar">{{ item.key[:2]|upper }}</span>
+            <details class="project-delete"{% if project_delete_key == item.key %} open{% endif %}>
+              <summary class="project-delete__toggle">Delete</summary>
+              <div class="project-delete__confirmation">
+                <strong>Delete {{ item.name }}?</strong>
+                <p>Its backlog, Sprints, Features, reports, and history will be permanently removed.</p>
+                {% if project_delete_key == item.key and project_delete_error %}
+                  <div class="flash flash--error" role="alert" data-error-code="{{ project_delete_error.code }}">
+                    {{ project_delete_error.user_message }}
+                  </div>
+                {% endif %}
+                <form
+                  action="/projects/{{ item.key|urlencode }}/delete"
+                  method="post"
+                  data-project-delete-confirmation="{{ item.key }}"
+                >
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="confirmation_key" value="{{ item.key }}">
+                  <button class="button project-delete__submit" type="submit">Delete project</button>
+                </form>
+              </div>
+            </details>
+          </div>
+          <a class="project-card__link" href="/projects/{{ item.key|urlencode }}/backlog">
+            <h2>{{ item.name }}</h2>
+            <p>{{ item.repository_url }}</p>
+            <div class="project-card__meta">
+              <span>{{ item.key }}</span>
+              <span>{{ item.default_branch }}</span>
+              <span class="row-arrow" aria-hidden="true">{{ icon("arrow") }}</span>
+            </div>
+          </a>
+        </article>
+      {% endfor %}
+    </section>
+  {% else %}
+    <div class="empty-state empty-state--large">
+      <span class="empty-state__mark" aria-hidden="true">＋</span>
+      <h2>No projects yet</h2>
+      <p>Use the form above to create your first local project workspace.</p>
+    </div>
+  {% endif %}
+{% endblock %}

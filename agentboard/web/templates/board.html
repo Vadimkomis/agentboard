@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "macros.html" import board_card %}
+{% block title %}{{ board_label|default("Board", true) }} · {{ project.name }} · AgentBoard{% endblock %}
+{% block page_title %}{{ board_label|default("Board", true) }}{% endblock %}
+{% block eyebrow %}{{ project.key }} · Engineering{% endblock %}
+{% block context_bar %}
+  <div class="context-bar">
+    <span class="context-pill"><i class="status-dot"></i>{% if active_sprint %}{{ active_sprint.sprint.name }}{% else %}No active sprint{% endif %}</span>
+    {% if active_sprint and active_sprint.sprint.goal %}
+      <span class="context-bar__note">{{ active_sprint.sprint.goal }}</span>
+    {% endif %}
+    <span class="context-bar__note context-bar__note--right">Initial Ready derives from active-Sprint facts; later states use durable Feature records</span>
+  </div>
+{% endblock %}
+{% block content %}
+  {% set ordered_columns = [
+    ("ready_for_engineering", "Ready for Engineering"),
+    ("working", "Working"),
+    ("in_review", "In Review"),
+    ("human_review", "Human Review"),
+    ("done", "Done")
+  ] %}
+  {% set columns = board_columns|default({}, true) %}
+  <section class="board-shell" aria-label="{{ board_label|default('Board', true) }} engineering workflow">
+    <div class="board-grid">
+      {% for state, label in ordered_columns %}
+        {% set column_features = columns.get(state, []) if columns.get is defined else [] %}
+        <section class="board-column board-column--{{ state }}" data-board-column="{{ state }}" aria-labelledby="column-{{ state }}">
+          <header class="board-column__header">
+            <span class="state-dot"></span>
+            <h2 id="column-{{ state }}">{{ label }}</h2>
+            <span>{{ column_features|length }}</span>
+          </header>
+          <div class="board-column__cards">
+            {% for feature in column_features %}
+              {{ board_card(project, feature) }}
+            {% else %}
+              <p class="column-empty">No work in this state</p>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

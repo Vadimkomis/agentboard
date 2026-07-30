@@ -28,12 +28,14 @@ Status: Approved
 10. Moving a Feature to Ready for Engineering fails unless its exact design
     revision is approved.
 
-## Engineering board
+## Sprint view
 
-11. The board has exactly five columns: Ready for Engineering, Working, In
-    Review, Human Review, and Ready to Merge.
-12. The board and Current Sprint list show the same sprint membership and
-    engineering state.
+11. The active Sprint view has exactly five columns: Ready for Engineering,
+    Working, In Review, Human Review, and Done; Done includes both merge-ready
+    and completed Features without changing their durable states.
+12. The Sprint view and Current Sprint list show the same sprint membership and
+    engineering state; the engineering route is labeled Board only when no
+    Sprint is active.
 13. Starting engineering creates and binds exactly one primary draft PR.
 14. Only one Feature per project may have an active engineering execution.
 
@@ -91,27 +93,38 @@ Status: Approved
 34. Light and dark modes are accessible and persist across sessions.
 35. Browser refresh reconstructs the page from SQLite without inventing or
     losing state.
-36. State-changing requests require authentication, CSRF protection,
-    idempotency, and the expected record version.
+36. State-changing requests require a signed browser session and CSRF
+    protection; mutations that retain existing versioned or ranked records
+    additionally require idempotency and the expected record version, and the
+    loopback browser exposes no password-authentication surface.
+37. The Projects catalog creates one isolated Project from a bounded,
+    CSRF-protected form and opens its Backlog; invalid, ambiguous, duplicate, or
+    conflicting submissions create nothing and render a safe error. The fields
+    remain collapsed until the owner activates the plus control, except that an
+    invalid response reopens them with safe preserved values.
+38. Deleting a Project requires CSRF and a two-step exact-key confirmation,
+    atomically removes its complete durable graph, and leaves every other
+    Project's Backlog and Sprint unchanged; rejected or failed deletion removes
+    nothing.
 
 ## Human-attention notifications
 
-37. A Feature entering Human Review creates exactly one durable notification
+39. A Feature entering Human Review creates exactly one durable notification
     delivery for its exact PR head and configured destination.
-38. The notification identifies the project, Feature, PR, exact head revision,
+40. The notification identifies the project, Feature, PR, exact head revision,
     and review URL without containing repository credentials or application
     secrets.
-39. Phone notifications cannot be enabled without a configured review base URL
+41. Phone notifications cannot be enabled without a configured review base URL
     that is reachable from the phone through a trusted private connection.
-40. Duplicate reconciliation for the same head does not create or send another
+42. Duplicate reconciliation for the same head does not create or send another
     notification; a later validated head may create its own delivery.
-41. A transient delivery failure is recorded and retried without changing the
+43. A transient delivery failure is recorded and retried without changing the
     Feature's engineering state or losing the pending notification.
-42. In the dogfood flow, the configured endpoint delivers one phone notification
+44. In the dogfood flow, the configured endpoint delivers one phone notification
     to the owner, and its review link opens the matching Human Review action.
 
 ## Release threshold
 
-All 42 assertions must pass, one real Feature must travel from Backlog through a
+All 44 assertions must pass, one real Feature must travel from Backlog through a
 merged PR, its Human Review transition must notify the owner's phone, and the
 owner must approve the release candidate.

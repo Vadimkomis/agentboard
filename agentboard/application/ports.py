@@ -6,7 +6,14 @@ from collections.abc import Callable, Sequence
 from types import TracebackType
 from typing import Protocol, Self, TypeAlias
 
-from agentboard.domain.entities import AuditEvent, Feature, Project, Sprint, SprintFeature
+from agentboard.domain.entities import (
+    AuditEvent,
+    CommandReceipt,
+    Feature,
+    Project,
+    Sprint,
+    SprintFeature,
+)
 
 
 class ProjectRepository(Protocol):
@@ -18,9 +25,31 @@ class ProjectRepository(Protocol):
 
     async def add(self, project: Project) -> Project: ...
 
+    async def delete(self, project_id: int) -> bool: ...
+
+    async def increment_version(
+        self,
+        project_id: int,
+        expected_version: int,
+    ) -> int | None: ...
+
 
 class FeatureRepository(Protocol):
     async def get(self, feature_id: int) -> Feature | None: ...
+
+    async def get_by_project_number(
+        self,
+        project_id: int,
+        feature_number: int,
+    ) -> Feature | None: ...
+
+    async def list_for_project(self, project_id: int) -> list[Feature]: ...
+
+    async def list_by_ids(
+        self,
+        project_id: int,
+        feature_ids: Sequence[int],
+    ) -> list[Feature]: ...
 
     async def list_future_backlog(self, project_id: int) -> list[Feature]: ...
 
@@ -42,6 +71,14 @@ class SprintRepository(Protocol):
 
     async def get_active(self, project_id: int) -> Sprint | None: ...
 
+    async def get_latest_for_feature(
+        self,
+        project_id: int,
+        feature_id: int,
+    ) -> Sprint | None: ...
+
+    async def list_completed(self, project_id: int) -> list[Sprint]: ...
+
     async def next_number(self, project_id: int) -> int: ...
 
     async def add(self, sprint: Sprint) -> Sprint: ...
@@ -62,12 +99,29 @@ class SprintRepository(Protocol):
 class AuditEventRepository(Protocol):
     async def add(self, event: AuditEvent) -> AuditEvent: ...
 
+    async def list_for_feature(
+        self,
+        project_id: int,
+        feature_id: int,
+    ) -> list[AuditEvent]: ...
+
+
+class CommandReceiptRepository(Protocol):
+    async def get(
+        self,
+        project_id: int,
+        idempotency_key: str,
+    ) -> CommandReceipt | None: ...
+
+    async def add(self, receipt: CommandReceipt) -> CommandReceipt: ...
+
 
 class UnitOfWork(Protocol):
     projects: ProjectRepository
     features: FeatureRepository
     sprints: SprintRepository
     audit_events: AuditEventRepository
+    command_receipts: CommandReceiptRepository
 
     async def __aenter__(self) -> Self: ...
 

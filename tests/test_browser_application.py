@@ -14,10 +14,12 @@ from agentboard.application import (
     CreateFeature,
     CreatePlannedSprint,
     CreateProject,
+    DeleteProject,
     GetActiveSprint,
     ListProjectBacklog,
     ReorderProjectBacklog,
     ReorderSprintMembership,
+    SeedDemoWorkspace,
     StartSprint,
     _support,
 )
@@ -78,6 +80,41 @@ class FakeProjectRepository:
         if project.id is not None:
             self._uow.projects_data[project.id] = project
         return project
+
+    async def delete(self, project_id: int) -> bool:
+        if not self._uow.delete_project_succeeds:
+            return False
+        if self._uow.projects_data.pop(project_id, None) is None:
+            return False
+        feature_ids = {
+            feature_id
+            for feature_id, feature in self._uow.features_data.items()
+            if feature.project_id == project_id
+        }
+        sprint_ids = {
+            sprint_id
+            for sprint_id, sprint in self._uow.sprints_data.items()
+            if sprint.project_id == project_id
+        }
+        self._uow.features_data = {
+            feature_id: feature
+            for feature_id, feature in self._uow.features_data.items()
+            if feature_id not in feature_ids
+        }
+        self._uow.sprints_data = {
+            sprint_id: sprint
+            for sprint_id, sprint in self._uow.sprints_data.items()
+            if sprint_id not in sprint_ids
+        }
+        self._uow.memberships_data = {
+            key: membership
+            for key, membership in self._uow.memberships_data.items()
+            if membership.sprint_id not in sprint_ids and membership.feature_id not in feature_ids
+        }
+        self._uow.audit_data = [
+            event for event in self._uow.audit_data if event.project_id != project_id
+        ]
+        return True
 
 
 class FakeFeatureRepository:
@@ -240,12 +277,14 @@ class FakeUnitOfWork:
         fail_commit: bool,
         fail_backlog_reorder: bool,
         fail_sprint_reorder: bool,
+        delete_project_succeeds: bool,
     ) -> None:
         self._store = store
         self.assign_identifiers = assign_identifiers
         self.fail_commit = fail_commit
         self.fail_backlog_reorder = fail_backlog_reorder
         self.fail_sprint_reorder = fail_sprint_reorder
+        self.delete_project_succeeds = delete_project_succeeds
         self.projects_data: dict[int, Project] = {}
         self.features_data: dict[int, Feature] = {}
         self.sprints_data: dict[int, Sprint] = {}
@@ -302,12 +341,14 @@ class FakeUnitOfWorkFactory:
         fail_commit: bool = False,
         fail_backlog_reorder: bool = False,
         fail_sprint_reorder: bool = False,
+        delete_project_succeeds: bool = True,
     ) -> None:
         self.store = store or FakeStore()
         self.assign_identifiers = assign_identifiers
         self.fail_commit = fail_commit
         self.fail_backlog_reorder = fail_backlog_reorder
         self.fail_sprint_reorder = fail_sprint_reorder
+        self.delete_project_succeeds = delete_project_succeeds
         self.instances: list[FakeUnitOfWork] = []
 
     def __call__(self) -> FakeUnitOfWork:
@@ -317,6 +358,7 @@ class FakeUnitOfWorkFactory:
             fail_commit=self.fail_commit,
             fail_backlog_reorder=self.fail_backlog_reorder,
             fail_sprint_reorder=self.fail_sprint_reorder,
+            delete_project_succeeds=self.delete_project_succeeds,
         )
         self.instances.append(uow)
         return uow
@@ -464,9 +506,11 @@ async def test_duplicate_project_key_rolls_back_without_an_audit_event() -> None
         ({"name": ""}, "Project name"),
         ({"repository_url": "\n"}, "Repository URL"),
         ({"default_branch": "\t"}, "Default branch"),
+        ({"key": "A/B"}, "letters, numbers, hyphens, and underscores"),
+        ({"key": "A" * 65}, "at most 64 characters"),
     ],
 )
-async def test_create_project_rejects_blank_required_text(
+async def test_create_project_rejects_invalid_required_text(
     overrides: dict[str, str],
     message: str,
 ) -> None:
@@ -529,6 +573,89 @@ async def test_list_projects_returns_stable_ascending_identifier_order() -> None
     projects = await browser_application.ListProjects(factory)()
 
     assert [project.id for project in projects] == [10, 20, 30]
+
+
+async def test_delete_project_removes_only_the_confirmed_project_graph() -> None:
+    store = FakeStore()
+    seed_project(store, project_id=1, key="ONE")
+    seed_project(store, project_id=2, key="TWO")
+    seed_feature(store, feature_id=1, project_id=1, number=1, rank=1)
+    seed_feature(store, feature_id=2, project_id=2, number=1, rank=1)
+    seed_sprint(store, sprint_id=1, project_id=1, number=1)
+    seed_sprint(store, sprint_id=2, project_id=2, number=1)
+    seed_membership(store, sprint_id=1, feature_id=1, rank=1)
+    seed_membership(store, sprint_id=2, feature_id=2, rank=1)
+    store.audit_events.extend(
+        [
+            AuditEvent(1, "feature.created", {}, NOW, feature_id=1),
+            AuditEvent(2, "feature.created", {}, NOW, feature_id=2),
+        ]
+    )
+    factory = FakeUnitOfWorkFactory(store)
+
+    deleted = await DeleteProject(factory)(
+        project_key="ONE",
+        confirmation_key="ONE",
+    )
+
+    assert deleted.key == "ONE"
+    assert list(store.projects) == [2]
+    assert list(store.features) == [2]
+    assert list(store.sprints) == [2]
+    assert list(store.memberships) == [(2, 2)]
+    assert [event.project_id for event in store.audit_events] == [2]
+    assert factory.instances[0].committed is True
+
+
+async def test_delete_project_rejects_missing_or_mismatched_confirmation() -> None:
+    store = FakeStore()
+    seed_project(store, project_id=1, key="ONE")
+    factory = FakeUnitOfWorkFactory(store)
+
+    with pytest.raises(InvalidInputError, match="confirmation"):
+        await DeleteProject(factory)(
+            project_key="ONE",
+            confirmation_key="TWO",
+        )
+    with pytest.raises(ProjectNotFoundError):
+        await DeleteProject(factory)(
+            project_key="MISSING",
+            confirmation_key="MISSING",
+        )
+
+    assert list(store.projects) == [1]
+
+
+async def test_delete_project_rolls_back_when_commit_fails() -> None:
+    store = FakeStore()
+    seed_project(store, project_id=1, key="ONE")
+    seed_feature(store, feature_id=1, project_id=1, number=1, rank=1)
+    factory = FakeUnitOfWorkFactory(store, fail_commit=True)
+
+    with pytest.raises(RuntimeError, match="injected commit failure"):
+        await DeleteProject(factory)(
+            project_key="ONE",
+            confirmation_key="ONE",
+        )
+
+    assert list(store.projects) == [1]
+    assert list(store.features) == [1]
+    assert factory.instances[0].rolled_back is True
+
+
+async def test_delete_project_reports_a_concurrent_missing_record() -> None:
+    store = FakeStore()
+    seed_project(store, project_id=1, key="ONE")
+    factory = FakeUnitOfWorkFactory(store, delete_project_succeeds=False)
+
+    with pytest.raises(ProjectNotFoundError):
+        await DeleteProject(factory)(
+            project_key="ONE",
+            confirmation_key="ONE",
+        )
+
+    assert list(store.projects) == [1]
+    assert factory.instances[0].rolled_back is True
 
 
 async def test_create_feature_appends_with_independent_project_number_and_rank() -> None:
@@ -1374,6 +1501,20 @@ async def test_commit_failure_persists_neither_state_nor_audit_history() -> None
         )
 
     assert factory.store.projects == {}
+    assert factory.store.audit_events == []
+    assert factory.instances[0].rolled_back is True
+
+
+async def test_demo_seed_commit_failure_rolls_back_the_complete_workspace() -> None:
+    factory = FakeUnitOfWorkFactory(fail_commit=True)
+
+    with pytest.raises(RuntimeError, match="injected commit failure"):
+        await SeedDemoWorkspace(factory, fixed_clock)()
+
+    assert factory.store.projects == {}
+    assert factory.store.features == {}
+    assert factory.store.sprints == {}
+    assert factory.store.memberships == {}
     assert factory.store.audit_events == []
     assert factory.instances[0].rolled_back is True
 

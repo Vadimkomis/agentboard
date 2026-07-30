@@ -20,8 +20,9 @@ class InvalidInputError(DomainError):
 class ProjectNotFoundError(DomainError):
     code = "project_not_found"
 
-    def __init__(self, project_id: int) -> None:
-        super().__init__(f"Project {project_id} was not found.")
+    def __init__(self, project_id: int | str) -> None:
+        identifier = repr(project_id) if isinstance(project_id, str) else str(project_id)
+        super().__init__(f"Project {identifier} was not found.")
 
 
 class DuplicateProjectKeyError(DomainError):
@@ -113,3 +114,19 @@ class PersistenceConflictError(DomainError):
 
     def __init__(self) -> None:
         super().__init__("The change conflicts with concurrently persisted state.")
+
+
+class StaleRecordVersionError(DomainError):
+    code = "stale_record_version"
+
+    def __init__(self, expected_version: int) -> None:
+        super().__init__(
+            f"The record changed after version {expected_version}; reload before trying again."
+        )
+
+
+class IdempotencyConflictError(DomainError):
+    code = "idempotency_conflict"
+
+    def __init__(self) -> None:
+        super().__init__("The idempotency key was already used for a different request.")

@@ -19,6 +19,7 @@ class Project:
     default_branch: str
     created_at: datetime
     updated_at: datetime
+    version: int = 1
     id: int | None = None
 
 
@@ -73,6 +74,17 @@ class AuditEvent:
     payload: dict[str, JsonValue]
     created_at: datetime
     feature_id: int | None = None
+    id: int | None = None
+
+
+@dataclass(slots=True)
+class CommandReceipt:
+    project_id: int
+    idempotency_key: str
+    command_type: str
+    request_hash: str
+    result: dict[str, JsonValue]
+    created_at: datetime
     id: int | None = None
 
 

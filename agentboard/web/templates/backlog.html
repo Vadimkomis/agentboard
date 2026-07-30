@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% from "macros.html" import feature_row, empty_state %}
+{% block title %}Backlog · {{ project.name }} · AgentBoard{% endblock %}
+{% block page_title %}Backlog{% endblock %}
+{% block eyebrow %}{{ project.key }} · Planning{% endblock %}
+{% block context_bar %}
+  <div class="context-bar">
+    <span class="context-pill"><i class="status-dot"></i>{{ project.name }}</span>
+    <span class="context-pill">Future work <strong>{{ future_backlog|length }}</strong></span>
+    <span class="context-bar__note">Ranking changes order only</span>
+  </div>
+{% endblock %}
+{% block content %}
+  <section class="page-section" aria-labelledby="current-sprint-heading">
+    <div class="section-heading">
+      <div>
+        <p class="kicker">Committed work</p>
+        <h2 id="current-sprint-heading">Current Sprint</h2>
+        {% if active_sprint %}
+          <p>{{ active_sprint.sprint.name }}{% if active_sprint.sprint.goal %} · {{ active_sprint.sprint.goal }}{% endif %}</p>
+        {% else %}
+          <p>No sprint is active for this project.</p>
+        {% endif %}
+      </div>
+      {% if active_sprint %}
+        <span class="section-count">{{ active_features|default([], true)|length }} active</span>
+      {% endif %}
+    </div>
+    {% if active_sprint and active_features %}
+      <div class="feature-list">
+        {% for feature in active_features %}
+          {{ feature_row(project, feature, active_sprint_member=true) }}
+        {% endfor %}
+      </div>
+    {% else %}
+      {{ empty_state("No current sprint work", "Approved work added to an active sprint will appear here.") }}
+    {% endif %}
+  </section>
+
+  {% if active_sprint and done_features %}
+    <section class="page-section page-section--compact" data-completed-section="true" aria-labelledby="backlog-done-heading">
+      <div class="section-heading section-heading--compact">
+        <div>
+          <p class="kicker">Completed this sprint</p>
+          <h2 id="backlog-done-heading">Done</h2>
+        </div>
+        <span class="section-count">{{ done_features|length }}</span>
+      </div>
+      <div class="feature-list">
+        {% for feature in done_features %}
+          {{ feature_row(project, feature, active_sprint_member=true) }}
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% set mutation_ready = csrf_token|default("", true) and expected_version|default(project.version|default("", true), true) and idempotency_key|default("", true) %}
+  <section class="page-section" aria-labelledby="future-backlog-heading">
+    <div class="section-heading">
+      <div>
+        <p class="kicker">Ranked queue</p>
+        <h2 id="future-backlog-heading">Future backlog</h2>
+        <p>Drag a row or use its arrow buttons. Planning and approval state stay unchanged.</p>
+      </div>
+      <span class="section-count">{{ future_backlog|length }} features</span>
+    </div>
+    {% if future_backlog %}
+      <form
+        class="reorder-form"
+        action="/projects/{{ project.key|urlencode }}/backlog/reorder"
+        method="post"
+        data-reorder-form
+        data-reorder-enabled="{{ 'true' if mutation_ready else 'false' }}"
+      >
+        {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
+        <input type="hidden" name="expected_version" value="{{ expected_version|default(project.version|default('', true), true) }}">
+        <input type="hidden" name="idempotency_key" value="{{ idempotency_key|default('', true) }}">
+        <div class="feature-list" data-reorder-list aria-live="polite">
+          {% for feature in future_backlog %}
+            {{ feature_row(project, feature, reorder=true, can_reorder=mutation_ready) }}
+          {% endfor %}
+        </div>
+        <div data-feature-id-inputs>
+          <input type="hidden" name="feature_ids" value="{{ future_backlog|map(attribute='id')|join(',') }}">
+        </div>
+        <p class="mutation-status" data-reorder-status>
+          {% if mutation_ready %}
+            Changes save when a feature is moved.
+          {% else %}
+            Reordering is unavailable in this read-only session.
+          {% endif %}
+        </p>
+      </form>
+    {% else %}
+      {{ empty_state("Future backlog is clear", "Non-completed work outside the current sprint will appear here.") }}
+    {% endif %}
+  </section>
+{% endblock %}

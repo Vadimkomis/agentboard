@@ -19,6 +19,7 @@ from agentboard.application import (
     CreateFeature,
     CreatePlannedSprint,
     CreateProject,
+    DeleteProject,
     GetActiveSprint,
     ListProjectBacklog,
     ReorderProjectBacklog,
@@ -46,6 +47,7 @@ from agentboard.infrastructure import paths as path_adapter
 from agentboard.infrastructure.conflicts import raise_write_conflict
 from agentboard.infrastructure.orm import (
     AuditEventRecord,
+    CommandReceiptRecord,
     FeatureRecord,
     ProjectRecord,
     SprintFeatureRecord,
@@ -119,7 +121,7 @@ def test_alembic_roundtrip_preserves_legacy_tables(tmp_path: Path) -> None:
         "stories",
     }.issubset(tables)
     assert len(triggers) == 7
-    assert version == ("0001_browser_domain",)
+    assert version == ("0002_browser_ui_security",)
 
     command.check(migration_runner._migration_config(database_path))
     downgrade_database(database_path)
@@ -130,6 +132,29 @@ def test_alembic_roundtrip_preserves_legacy_tables(tmp_path: Path) -> None:
     assert "stories" in tables_after
     assert "projects" not in tables_after
     assert legacy == ("legacy",)
+
+
+def test_browser_upgrade_rejects_legacy_projects_with_url_unsafe_keys(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "unsafe-project-key.db"
+    upgrade_database(database_path, "0001_browser_domain")
+    with closing(sqlite3.connect(database_path)) as connection:
+        connection.execute(
+            """
+            INSERT INTO projects ("key", name, repository_url, default_branch)
+            VALUES ('A/B', 'Unsafe', 'https://github.com/example/unsafe', 'main')
+            """
+        )
+        connection.commit()
+
+    with pytest.raises(RuntimeError, match=r"Project 1 has URL-unsafe key 'A/B'"):
+        upgrade_database(database_path)
+
+    with closing(sqlite3.connect(database_path)) as connection:
+        version = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+
+    assert version == ("0001_browser_domain",)
 
 
 def test_alembic_offline_upgrade_renders_foundation_sql(
@@ -830,6 +855,137 @@ async def test_sqlite_foreign_key_delete_actions_preserve_audit_history(
             await session.commit()
         async with database.session() as session:
             assert await session.scalar(select(text("count(*)")).select_from(FeatureRecord)) == 0
+    finally:
+        await database.dispose()
+
+
+async def test_delete_project_removes_only_its_complete_persisted_graph(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "delete-project.db"
+    await upgrade_database_async(database_path)
+    database = Database(database_path)
+    try:
+        first = await _create_project(database.unit_of_work, "ONE")
+        second = await _create_project(database.unit_of_work, "TWO")
+        first_id = _required(first.id)
+        second_id = _required(second.id)
+        first_feature = await _create_feature(
+            database.unit_of_work,
+            first_id,
+            "First Project Feature",
+            approved=True,
+        )
+        second_feature = await _create_feature(
+            database.unit_of_work,
+            second_id,
+            "Second Project Feature",
+            approved=True,
+        )
+        first_sprint = await CreatePlannedSprint(database.unit_of_work, fixed_clock)(
+            project_id=first_id,
+            name="First Sprint",
+        )
+        second_sprint = await CreatePlannedSprint(database.unit_of_work, fixed_clock)(
+            project_id=second_id,
+            name="Second Sprint",
+        )
+        await AddFeatureToSprint(database.unit_of_work, fixed_clock)(
+            sprint_id=_required(first_sprint.id),
+            feature_id=_required(first_feature.id),
+        )
+        await AddFeatureToSprint(database.unit_of_work, fixed_clock)(
+            sprint_id=_required(second_sprint.id),
+            feature_id=_required(second_feature.id),
+        )
+        await ReorderProjectBacklog(database.unit_of_work, fixed_clock)(
+            project_id=first_id,
+            feature_ids=[_required(first_feature.id)],
+            idempotency_key="delete-project-receipt",
+        )
+
+        await DeleteProject(database.unit_of_work)(
+            project_key="ONE",
+            confirmation_key="ONE",
+        )
+
+        async with database.session() as session:
+            assert await session.get(ProjectRecord, first_id) is None
+            assert await session.get(FeatureRecord, _required(first_feature.id)) is None
+            assert await session.get(SprintRecord, _required(first_sprint.id)) is None
+            assert (
+                await session.scalar(
+                    select(text("count(*)"))
+                    .select_from(AuditEventRecord)
+                    .where(AuditEventRecord.project_id == first_id)
+                )
+                == 0
+            )
+            assert (
+                await session.scalar(
+                    select(text("count(*)"))
+                    .select_from(CommandReceiptRecord)
+                    .where(CommandReceiptRecord.project_id == first_id)
+                )
+                == 0
+            )
+            assert await session.get(ProjectRecord, second_id) is not None
+            assert await session.get(FeatureRecord, _required(second_feature.id)) is not None
+            assert await session.get(SprintRecord, _required(second_sprint.id)) is not None
+    finally:
+        await database.dispose()
+
+    reopened = Database(database_path)
+    try:
+        with pytest.raises(ProjectNotFoundError):
+            await browser_application.GetProject(reopened.unit_of_work)(project_id=first_id)
+        preserved = await browser_application.GetProject(reopened.unit_of_work)(
+            project_id=second_id
+        )
+        assert preserved.key == "TWO"
+    finally:
+        await reopened.dispose()
+
+
+async def test_delete_project_rolls_back_audit_removal_when_project_delete_fails(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "delete-project-rollback.db"
+    await upgrade_database_async(database_path)
+    database = Database(database_path)
+    try:
+        project = await _create_project(database.unit_of_work, "ONE")
+        project_id = _required(project.id)
+        feature = await _create_feature(database.unit_of_work, project_id, "Preserved")
+        async with database.session() as session:
+            await session.execute(
+                text(
+                    """
+                    CREATE TRIGGER reject_project_delete
+                    BEFORE DELETE ON projects
+                    BEGIN
+                        SELECT RAISE(ABORT, 'injected project delete failure');
+                    END
+                    """
+                )
+            )
+            await session.commit()
+
+        with pytest.raises(PersistenceConflictError):
+            await DeleteProject(database.unit_of_work)(
+                project_key="ONE",
+                confirmation_key="ONE",
+            )
+
+        async with database.session() as session:
+            assert await session.get(ProjectRecord, project_id) is not None
+            assert await session.get(FeatureRecord, _required(feature.id)) is not None
+            audit_count = await session.scalar(
+                select(text("count(*)"))
+                .select_from(AuditEventRecord)
+                .where(AuditEventRecord.project_id == project_id)
+            )
+            assert audit_count == 2
     finally:
         await database.dispose()
 

@@ -58,19 +58,19 @@ Inbox → Clarifying → Spec → Evals → Design → Design Review
 An approved design allows the owner to add the Feature to the current sprint in
 Ready for Engineering.
 
-## Engineering board
+## Sprint view
 
-The board shows only Features in the project's current sprint:
+The Sprint view shows only Features in the project's current sprint:
 
 ```text
-Ready for Engineering → Working → In Review → Human Review → Ready to Merge
+Ready for Engineering → Working → In Review → Human Review → Done
 ```
 
 Starting engineering creates and binds one draft GitHub PR. Thereafter, the
-board derives state from the PR's head revision, checks, validation, reviews,
+Sprint view derives state from the PR's head revision, checks, validation, reviews,
 approval, and mergeability.
 
-The board is not freely draggable. New commits or failed checks can move a card
+The Sprint view is not freely draggable. New commits or failed checks can move a card
 backward. A merged PR moves the Feature to Done.
 
 Validation is an independent, evidence-backed run against one immutable PR head.
@@ -79,9 +79,9 @@ advances that exact head to Human Review; a candidate failure returns the Featur
 to Working; an infrastructure or protocol error keeps it in In Review with an
 explicit attention state. Any new commit makes the earlier result stale.
 
-While the sprint remains active, Done Features stay visible in a compact
-completed section on the sprint and board. They do not occupy an active-work
-column or count toward work in progress.
+While the sprint remains active, merge-ready and completed Features share the
+Done column but retain their distinct durable states. Completed Features do not
+count toward work in progress.
 
 When the sprint closes, its Done Features disappear from standard active-sprint
 and future-backlog views. They remain permanently available in completed-sprint

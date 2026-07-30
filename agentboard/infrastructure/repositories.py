@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import case, func, or_, select, update
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.base import Executable
@@ -14,7 +14,9 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from agentboard.domain.entities import (
     AuditEvent,
+    CommandReceipt,
     Feature,
+    JsonValue,
     Project,
     Sprint,
     SprintFeature,
@@ -24,6 +26,7 @@ from agentboard.domain.ranking import contiguous_ranks, validate_exact_order
 from agentboard.infrastructure.conflicts import raise_write_conflict
 from agentboard.infrastructure.orm import (
     AuditEventRecord,
+    CommandReceiptRecord,
     FeatureRecord,
     ProjectRecord,
     SprintFeatureRecord,
@@ -54,6 +57,7 @@ class SqlAlchemyProjectRepository:
             name=project.name,
             repository_url=project.repository_url,
             default_branch=project.default_branch,
+            version=project.version,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -61,6 +65,42 @@ class SqlAlchemyProjectRepository:
         await _flush(self._session)
         project.id = record.id
         return project
+
+    async def delete(self, project_id: int) -> bool:
+        await _execute_write(
+            self._session,
+            delete(AuditEventRecord).where(AuditEventRecord.project_id == project_id),
+        )
+        statement = (
+            delete(ProjectRecord)
+            .where(ProjectRecord.id == project_id)
+            .returning(ProjectRecord.id)
+            .execution_options(synchronize_session=False)
+        )
+        try:
+            return await self._session.scalar(statement) is not None
+        except (IntegrityError, OperationalError) as error:
+            raise_write_conflict(error)
+
+    async def increment_version(
+        self,
+        project_id: int,
+        expected_version: int,
+    ) -> int | None:
+        statement = (
+            update(ProjectRecord)
+            .where(
+                ProjectRecord.id == project_id,
+                ProjectRecord.version == expected_version,
+            )
+            .values(version=ProjectRecord.version + 1)
+            .returning(ProjectRecord.version)
+            .execution_options(synchronize_session=False)
+        )
+        try:
+            return cast(int | None, await self._session.scalar(statement))
+        except (IntegrityError, OperationalError) as error:
+            raise_write_conflict(error)
 
 
 class SqlAlchemyFeatureRepository:
@@ -70,6 +110,43 @@ class SqlAlchemyFeatureRepository:
     async def get(self, feature_id: int) -> Feature | None:
         record = await self._session.get(FeatureRecord, feature_id)
         return None if record is None else _feature_from_record(record)
+
+    async def get_by_project_number(
+        self,
+        project_id: int,
+        feature_number: int,
+    ) -> Feature | None:
+        record = await self._session.scalar(
+            select(FeatureRecord).where(
+                FeatureRecord.project_id == project_id,
+                FeatureRecord.number == feature_number,
+            )
+        )
+        return None if record is None else _feature_from_record(record)
+
+    async def list_for_project(self, project_id: int) -> list[Feature]:
+        records = await self._session.scalars(
+            select(FeatureRecord)
+            .where(FeatureRecord.project_id == project_id)
+            .order_by(FeatureRecord.rank, FeatureRecord.id)
+        )
+        return [_feature_from_record(record) for record in records]
+
+    async def list_by_ids(
+        self,
+        project_id: int,
+        feature_ids: Sequence[int],
+    ) -> list[Feature]:
+        if not feature_ids:
+            return []
+        records = await self._session.scalars(
+            select(FeatureRecord).where(
+                FeatureRecord.project_id == project_id,
+                FeatureRecord.id.in_(feature_ids),
+            )
+        )
+        features = {record.id: _feature_from_record(record) for record in records}
+        return [features[feature_id] for feature_id in feature_ids if feature_id in features]
 
     async def list_future_backlog(self, project_id: int) -> list[Feature]:
         records = await self._session.scalars(
@@ -176,6 +253,43 @@ class SqlAlchemySprintRepository:
             )
         )
         return None if record is None else _sprint_from_record(record)
+
+    async def get_latest_for_feature(
+        self,
+        project_id: int,
+        feature_id: int,
+    ) -> Sprint | None:
+        record = await self._session.scalar(
+            select(SprintRecord)
+            .join(
+                SprintFeatureRecord,
+                SprintFeatureRecord.sprint_id == SprintRecord.id,
+            )
+            .where(
+                SprintRecord.project_id == project_id,
+                SprintFeatureRecord.feature_id == feature_id,
+            )
+            .order_by(
+                case(
+                    (SprintRecord.state == SprintState.active.value, 0),
+                    else_=1,
+                ),
+                SprintRecord.number.desc(),
+                SprintRecord.id.desc(),
+            )
+        )
+        return None if record is None else _sprint_from_record(record)
+
+    async def list_completed(self, project_id: int) -> list[Sprint]:
+        records = await self._session.scalars(
+            select(SprintRecord)
+            .where(
+                SprintRecord.project_id == project_id,
+                SprintRecord.state == SprintState.completed.value,
+            )
+            .order_by(SprintRecord.number, SprintRecord.id)
+        )
+        return [_sprint_from_record(record) for record in records]
 
     async def next_number(self, project_id: int) -> int:
         value = await self._session.scalar(
@@ -330,6 +444,54 @@ class SqlAlchemyAuditEventRepository:
         event.id = record.id
         return event
 
+    async def list_for_feature(
+        self,
+        project_id: int,
+        feature_id: int,
+    ) -> list[AuditEvent]:
+        records = await self._session.scalars(
+            select(AuditEventRecord)
+            .where(
+                AuditEventRecord.project_id == project_id,
+                AuditEventRecord.feature_id == feature_id,
+            )
+            .order_by(AuditEventRecord.created_at, AuditEventRecord.id)
+        )
+        return [_audit_event_from_record(record) for record in records]
+
+
+class SqlAlchemyCommandReceiptRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def get(
+        self,
+        project_id: int,
+        idempotency_key: str,
+    ) -> CommandReceipt | None:
+        record = await self._session.scalar(
+            select(CommandReceiptRecord).where(
+                CommandReceiptRecord.project_id == project_id,
+                CommandReceiptRecord.idempotency_key == idempotency_key,
+            )
+        )
+        return None if record is None else _command_receipt_from_record(record)
+
+    async def add(self, receipt: CommandReceipt) -> CommandReceipt:
+        record = CommandReceiptRecord(
+            id=receipt.id,
+            project_id=receipt.project_id,
+            idempotency_key=receipt.idempotency_key,
+            command_type=receipt.command_type,
+            request_hash=receipt.request_hash,
+            result=cast(dict[str, object], receipt.result),
+            created_at=receipt.created_at,
+        )
+        self._session.add(record)
+        await _flush(self._session)
+        receipt.id = record.id
+        return receipt
+
 
 async def _flush(session: AsyncSession) -> None:
     try:
@@ -353,6 +515,7 @@ def _project_from_record(record: ProjectRecord) -> Project:
         default_branch=record.default_branch,
         created_at=_as_utc(record.created_at),
         updated_at=_as_utc(record.updated_at),
+        version=record.version,
         id=record.id,
     )
 
@@ -412,6 +575,29 @@ def _sprint_from_record(record: SprintRecord) -> Sprint:
         ends_at=_optional_utc(record.ends_at),
         created_at=_as_utc(record.created_at),
         updated_at=_as_utc(record.updated_at),
+        id=record.id,
+    )
+
+
+def _audit_event_from_record(record: AuditEventRecord) -> AuditEvent:
+    return AuditEvent(
+        project_id=record.project_id,
+        feature_id=record.feature_id,
+        event_type=record.event_type,
+        payload=cast(dict[str, JsonValue], record.payload),
+        created_at=_as_utc(record.created_at),
+        id=record.id,
+    )
+
+
+def _command_receipt_from_record(record: CommandReceiptRecord) -> CommandReceipt:
+    return CommandReceipt(
+        project_id=record.project_id,
+        idempotency_key=record.idempotency_key,
+        command_type=record.command_type,
+        request_hash=record.request_hash,
+        result=cast(dict[str, JsonValue], record.result),
+        created_at=_as_utc(record.created_at),
         id=record.id,
     )
 

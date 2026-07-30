@@ -3,6 +3,7 @@
 from agentboard.domain.entities import (
     ActiveSprint,
     AuditEvent,
+    CommandReceipt,
     Feature,
     Project,
     Sprint,
@@ -14,6 +15,7 @@ from agentboard.domain.errors import DomainError
 __all__ = [
     "ActiveSprint",
     "AuditEvent",
+    "CommandReceipt",
     "DomainError",
     "EngineeringState",
     "Feature",
