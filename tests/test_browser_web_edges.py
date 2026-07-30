@@ -657,7 +657,7 @@ async def test_direct_project_creation_handler_covers_success_and_validation(
 
 
 @pytest.mark.asyncio
-async def test_direct_project_deletion_handler_covers_success(
+async def test_direct_project_deletion_handler_covers_success_and_missing_confirmation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -669,9 +669,16 @@ async def test_direct_project_deletion_handler_covers_success(
     monkeypatch.setattr(web_app, "_uow_factory", lambda _request: object())
     monkeypatch.setattr(web_app, "DeleteProject", lambda _factory: _ImmediateQuery(project))
     deleted = await web_app._delete_project(_form_request(app, body), "AB", claims)
+    with pytest.raises(HTTPException) as missing_confirmation:
+        await web_app._delete_project(
+            _form_request(app, b"csrf_token=direct-csrf"),
+            "AB",
+            claims,
+        )
 
     assert deleted.status_code == 303
     assert deleted.headers["location"] == "/projects"
+    assert missing_confirmation.value.status_code == 400
 
 
 @pytest.mark.asyncio
