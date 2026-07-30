@@ -48,6 +48,10 @@ pass/fail results; this document does not record transient statuses.
 
 ## Browser v0 application
 
+- Name: Browser-only product surface
+- Description: The installed command exposes only browser launch, Project creation, representative demo seeding, and version output; the retired terminal UI, Story/Ticket workflow, agent registry, and legacy configuration surface are absent.
+- Test mapping: `tests/test_browser_cli.py` asserts the exact supported command set; Ruff and mypy verify that the supported package no longer imports the removed modules.
+
 - Name: Browser Project creation
 - Description: The Projects catalog initially exposes a plus control instead of creation fields; activating it reveals the Project key, display name, repository URL, and default branch fields, while validation errors reopen the disclosure with safe preserved values. Valid CSRF-protected submissions atomically create one isolated Project and open its Backlog.
 - Test mapping: `tests/test_browser_web.py` and `tests/test_browser_web_edges.py` cover collapsed disclosure markup, successful redirect and persistence, CSRF rejection, escaped value preservation, typed validation, duplicate-key conflicts, bounded parsing, and ambiguous fields; corresponds to acceptance eval 37.
@@ -100,7 +104,7 @@ pass/fail results; this document does not record transient statuses.
 
 - Name: GitHub pull-request synchronization
 - Description: Signed, idempotent webhook ingestion and periodic reconciliation preserve one primary PR and exact-head facts.
-- Test mapping: To be added by `feature/github-pr-synchronization`; the legacy optional GitHub CLI behavior is separate.
+- Test mapping: To be added by `feature/github-pr-synchronization`.
 
 - Name: Independent validator execution
 - Description: AgentBoard stores and verifies independent-validator assignments and results for immutable candidate revisions.
@@ -108,8 +112,8 @@ pass/fail results; this document does not record transient statuses.
 
 - Name: Human Review notifications
 - Description: Entering Human Review creates and eventually delivers one durable notification per Feature, exact head, kind, and destination.
-- Test mapping: To be added by `feature/human-review-notifications`; legacy terminal and desktop notifications are separate.
+- Test mapping: To be added by `feature/human-review-notifications`.
 
 - Name: Serial browser-v0 engineering worker
 - Description: At most one Feature per Project has an active browser-v0 engineering execution.
-- Test mapping: To be added after the browser and integration slices; the legacy Ticket orchestrator is separate.
+- Test mapping: To be added after the browser and integration slices.

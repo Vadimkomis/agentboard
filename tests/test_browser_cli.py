@@ -6,6 +6,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from typer.main import get_command
 from typer.testing import CliRunner
 
 from agentboard.application import (
@@ -16,6 +17,17 @@ from agentboard.application import (
 )
 from agentboard.cli import app
 from agentboard.infrastructure.database import Database
+
+
+def test_cli_exposes_only_browser_product_commands() -> None:
+    command = get_command(app)
+
+    assert set(command.commands) == {
+        "create-project",
+        "seed-demo",
+        "version",
+        "web",
+    }
 
 
 def test_create_project_command_makes_a_project_visible_to_browser_queries(

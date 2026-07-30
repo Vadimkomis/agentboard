@@ -5,15 +5,16 @@ build-backend = "hatchling.build"
 [project]
 name = "agentboard"
 version = "0.1.0"
-description = "Story-driven multi-agent development TUI — local CLI where AI agents handle engineering and GTM work"
+description = "Local browser workspace for project backlogs, Sprints, approvals, and reports"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 authors = [{ name = "AgentBoard Contributors" }]
-keywords = ["ai", "agents", "tui", "kanban", "cli", "llm", "development"]
+keywords = ["browser", "kanban", "local-first", "project-management", "sqlite"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
+    "Environment :: Web Environment",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
@@ -23,20 +24,13 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development",
-    "Topic :: Terminals",
 ]
 
 dependencies = [
-    "textual>=0.47.0",
     "typer>=0.9.0",
     "sqlalchemy[asyncio]>=2.0.0",
     "aiosqlite>=0.19.0",
     "alembic>=1.13.0",
-    "pyyaml>=6.0",
-    "httpx>=0.27.0",
-    "pydantic>=2.0.0",
-    "rich>=13.0.0",
-    "anyio>=4.0.0",
     "fastapi>=0.115.0,<1.0",
     "jinja2>=3.1.0,<4.0",
     "uvicorn>=0.30.0,<1.0",
@@ -49,6 +43,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "ruff==0.16.0",
     "mypy>=1.8.0",
+    "httpx>=0.27.0",
 ]
 
 [project.scripts]
@@ -71,22 +66,16 @@ line-length = 100
 select = ["E", "F", "W", "I", "N", "UP", "ANN", "S", "B", "A", "C4", "T20", "RET", "SIM", "TID"]
 ignore = [
     "ANN401",  # Any type
-    "S603",    # subprocess calls (we use these intentionally)
-    "S607",    # partial executable paths
-    "S108",    # /tmp path in config default — intentional
     "B008",    # typer.Option() in function defaults — standard Typer pattern
     "UP042",   # StrEnum upgrade — keep str+Enum for SQLAlchemy compatibility
-    "E501",    # line length — prompt strings in agents exceed 100 chars by design
+    "E501",    # line length — templates and schema strings may exceed 100 characters
     "S101",    # assert in production — used for type narrowing, not user input
-    "S110",    # try/except/pass — used intentionally in agent registry loader
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "ANN"]
 "agentboard/migrations/**" = ["ANN"]
-"agentboard/agents/defaults/**" = []  # no Python files here
-"agentboard/tui/**" = ["ANN"]          # Textual widget methods often lack annotations
-"agentboard/cli.py" = ["ANN"]          # Typer CLI args don't need annotations
+"agentboard/cli.py" = ["ANN"]  # Typer CLI args don't need annotations
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -97,14 +86,8 @@ addopts = "--cov=agentboard --cov-report=term-missing --cov-fail-under=100"
 [tool.coverage.run]
 concurrency = ["thread", "greenlet"]
 omit = [
-    # Terminal UI is an integration boundary, not part of unit coverage.
-    "agentboard/tui/*",
-    # Provider clients require installed external CLIs.
-    "agentboard/llm/claude_cli.py",
-    "agentboard/llm/codex_cli.py",
     # Thin process and CLI boundaries are covered by integration tests.
     "agentboard/cli.py",
-    "agentboard/agents/engineering_runner.py",
 ]
 
 [tool.mypy]

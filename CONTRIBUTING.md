@@ -26,42 +26,25 @@ ruff check agentboard tests
 ruff format agentboard tests
 ```
 
-## Adding a New Agent Type
-
-1. Create `agentboard/agents/defaults/<type>.yml`:
-```yaml
-name: myagent
-description: What it does
-preferred_provider: claude
-model: claude-sonnet-4-6
-tools: [read_file, write_file, bash]
-system_prompt: |
-  You are a...
-```
-
-2. Add the enum value to `AgentType` in `agentboard/core/models.py`
-3. Add a badge abbreviation in `agentboard/tui/widgets/story_card.py`
-4. Add tests in `tests/`
-
 ## How the Codebase Is Organized
 
 ```
 agentboard/
-├── cli.py          # Typer entry point
-├── core/           # DB, models, config, agent registry
-├── llm/            # CLI subprocess clients (claude, codex)
-├── agents/         # PM, Growth, Engineering Runner; default YAML configs
-├── workers/        # asyncio orchestrator + heartbeat
-└── tui/            # Textual app, screens, widgets
+├── application/    # Use cases and persistence ports
+├── domain/         # Project, Feature, and Sprint rules
+├── infrastructure/ # SQLite adapters and migrations
+├── migrations/     # Alembic migration environment
+├── web/            # FastAPI routes, templates, and local assets
+└── cli.py          # Browser, demo, and Project commands
 ```
 
 ## Principles
 
 - No hosted services — everything runs locally
-- Agent agnostic — no vendor lock-in
-- PRD ↔ ticket live link — tickets are derived from PRDs, not independent
-- Heartbeat — periodic health checks, never silent failures
-- GTM mandatory — the PM agent refuses to finalize without a launch plan
+- Projects own their Backlog, Sprint, and Feature state
+- Browser access is loopback-only and login-free
+- Mutations remain durable, atomic, and project-isolated
+- Integrations must not fabricate repository or validation evidence
 
 ## Submitting a PR
 

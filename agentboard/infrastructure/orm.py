@@ -20,7 +20,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class BrowserBase(DeclarativeBase):
-    """Declarative base kept separate from the legacy Story/Ticket metadata."""
+    """Declarative base for AgentBoard browser records."""
 
 
 class ProjectRecord(BrowserBase):
