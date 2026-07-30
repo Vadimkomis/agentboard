@@ -88,9 +88,12 @@ design and Human Review attention, and a completed-Sprint report. Seeding is
 atomic and refuses to alter an existing `DEMO` Project; choose a new database
 path for a fresh copy.
 
-To create an empty Project instead, use the **Create project** form on the
-Projects page. Enter a stable URL-safe key, display name, repository URL, and
-default branch; AgentBoard opens the new Project's empty Backlog after creation.
+To create an empty Project instead, select the **+** control on the Projects
+page, then enter a stable URL-safe key, display name, repository URL, and
+default branch. AgentBoard opens the new Project's independent empty Backlog
+after creation. Each Project keeps its own Backlog and Sprint. A Project can be
+permanently removed from its catalog card through the explicit two-step delete
+confirmation without changing any other Project.
 The equivalent CLI command is:
 
 ```bash

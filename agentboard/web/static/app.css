@@ -415,10 +415,6 @@ svg {
   background: color-mix(in srgb, var(--accent), #fff 8%);
 }
 
-.button--wide {
-  width: 100%;
-}
-
 .button:disabled {
   cursor: not-allowed;
   opacity: .48;
@@ -823,7 +819,7 @@ svg {
   background: var(--violet);
 }
 
-.board-column--ready_to_merge .state-dot {
+.board-column--done .state-dot {
   background: var(--accent);
 }
 
@@ -910,6 +906,40 @@ svg {
 
 .project-create {
   margin-bottom: 24px;
+}
+
+.project-create__toggle {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  margin-left: auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent), #fff 18%);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+  font-size: 25px;
+  font-weight: 500;
+  line-height: 1;
+  list-style: none;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+
+.project-create__toggle::-webkit-details-marker {
+  display: none;
+}
+
+.project-create__toggle:hover {
+  background: color-mix(in srgb, var(--accent), #fff 8%);
+}
+
+.project-create[open] .project-create__toggle {
+  transform: rotate(45deg);
+}
+
+.project-create__fields {
+  margin-top: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--panel);
@@ -964,6 +994,7 @@ svg {
 }
 
 .project-card {
+  position: relative;
   min-height: 205px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -971,6 +1002,11 @@ svg {
   padding: 19px;
   text-decoration: none;
   transition: border-color 130ms ease, background-color 130ms ease, translate 130ms ease;
+}
+
+.project-card__link {
+  display: block;
+  text-decoration: none;
 }
 
 .project-card:hover {
@@ -983,6 +1019,66 @@ svg {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.project-delete {
+  position: relative;
+}
+
+.project-delete__toggle {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--quiet);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 720;
+  list-style: none;
+  padding: 6px 8px;
+}
+
+.project-delete__toggle::-webkit-details-marker {
+  display: none;
+}
+
+.project-delete__toggle:hover,
+.project-delete[open] .project-delete__toggle {
+  background: color-mix(in srgb, var(--red), transparent 88%);
+  color: var(--red);
+}
+
+.project-delete__confirmation {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(285px, calc(100vw - 54px));
+  border: 1px solid color-mix(in srgb, var(--red), transparent 45%);
+  border-radius: 11px;
+  background: var(--panel-raised);
+  box-shadow: var(--shadow);
+  padding: 14px;
+}
+
+.project-delete__confirmation strong {
+  font-size: 12px;
+}
+
+.project-delete__confirmation p {
+  margin: 5px 0 12px;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: normal;
+}
+
+.project-delete__confirmation .flash {
+  margin: 0 0 10px;
+}
+
+.project-delete__submit {
+  width: 100%;
+  border-color: color-mix(in srgb, var(--red), transparent 35%);
+  color: var(--red);
 }
 
 .project-avatar {
@@ -1017,6 +1113,12 @@ svg {
   color: var(--quiet);
   padding: 3px 7px;
   font: 680 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.project-card__meta .row-arrow {
+  margin-left: auto;
+  background: transparent;
+  padding-right: 0;
 }
 
 .detail-layout {

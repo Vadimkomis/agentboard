@@ -18,6 +18,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agentboard.application import (
     CreateProject,
+    DeleteProject,
     GetProjectFeature,
     GetProjectWorkspace,
     ListProjectApprovals,
@@ -144,6 +145,12 @@ def _register_routes(app: FastAPI) -> None:
         response_class=HTMLResponse,
     )
     app.add_api_route(
+        "/projects/{project_key}/delete",
+        _delete_project,
+        methods=["POST"],
+        response_class=HTMLResponse,
+    )
+    app.add_api_route(
         "/projects/{project_key}/backlog",
         _backlog,
         methods=["GET"],
@@ -227,6 +234,8 @@ async def _render_projects(
     values: dict[str, str] | None = None,
     error: DomainError | None = None,
     status_code: int = status.HTTP_200_OK,
+    delete_error: DomainError | None = None,
+    delete_project_key: str | None = None,
 ) -> Response:
     context = {
         **_base_context(request),
@@ -234,6 +243,8 @@ async def _render_projects(
         "projects": await ListProjects(_uow_factory(request))(),
         "project_form": values or _empty_project_form(),
         "project_form_error": error,
+        "project_delete_error": delete_error,
+        "project_delete_key": delete_project_key,
     }
     return _TEMPLATES.TemplateResponse(
         request,
@@ -241,6 +252,37 @@ async def _render_projects(
         context,
         status_code=status_code,
     )
+
+
+async def _delete_project(
+    request: Request,
+    project_key: str,
+    claims: Annotated[CsrfSession, Depends(_csrf_session)],
+) -> Response:
+    form = await _urlencoded_form(request)
+    _require_csrf(claims, _single_value(form, "csrf_token"))
+    confirmation_key = _single_value(form, "confirmation_key")
+    if confirmation_key is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+    try:
+        await DeleteProject(_uow_factory(request))(
+            project_key=project_key,
+            confirmation_key=confirmation_key,
+        )
+    except (InvalidInputError, PersistenceConflictError) as error:
+        status_code = (
+            status.HTTP_400_BAD_REQUEST
+            if isinstance(error, InvalidInputError)
+            else status.HTTP_409_CONFLICT
+        )
+        return await _render_projects(
+            request,
+            claims,
+            status_code=status_code,
+            delete_error=error,
+            delete_project_key=project_key,
+        )
+    return RedirectResponse("/projects", status_code=status.HTTP_303_SEE_OTHER)
 
 
 async def _backlog(

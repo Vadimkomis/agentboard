@@ -62,6 +62,29 @@ class ListProjects:
             return await uow.projects.list()
 
 
+class DeleteProject:
+    def __init__(self, uow_factory: UnitOfWorkFactory) -> None:
+        self._uow_factory = uow_factory
+
+    async def __call__(
+        self,
+        *,
+        project_key: str,
+        confirmation_key: str,
+    ) -> Project:
+        if confirmation_key != project_key:
+            raise InvalidInputError("Project deletion confirmation did not match.")
+        async with self._uow_factory() as uow:
+            project = await uow.projects.get_by_key(project_key)
+            if project is None:
+                raise ProjectNotFoundError(project_key)
+            project_id = persisted_id(project.id)
+            if not await uow.projects.delete(project_id):
+                raise ProjectNotFoundError(project_key)
+            await uow.commit()
+            return project
+
+
 def _validate_project(
     key: str, name: str, repository_url: str, default_branch: str
 ) -> tuple[str, ...]:

@@ -374,7 +374,7 @@ Feature: Browser v0 domain and persistence foundation
     And the status is "completed"
 
   Scenario: Atomic state and audit persistence
-    Given a Project, Feature, backlog, or Sprint command changes state
+    Given a Project, Feature, backlog, or Sprint command changes state while retaining its Project
     When its transaction succeeds or fails
     Then state and its minimal structured audit record commit together or both roll back
     And the status is "completed"
@@ -396,11 +396,19 @@ Feature: Browser v0 derived engineering state
 Feature: Browser v0 local project workspace
 
   Scenario: Create a project from the catalog
-    Given the owner is viewing the Projects catalog
-    When the owner submits a valid key, name, repository URL, and default branch
+    Given the owner is viewing the Projects catalog with the creation fields collapsed
+    When the owner activates the plus control and submits a valid key, name, repository URL, and default branch
     Then AgentBoard atomically creates the isolated Project and opens its empty Backlog
     And invalid or duplicate submissions preserve the entered values and show a safe error
     And the mutation requires the signed browser CSRF token
+    And the status is "completed"
+
+  Scenario: Delete a project from the catalog
+    Given the Projects catalog contains independent Project workspaces
+    When the owner opens one Project's deletion confirmation and confirms its exact key
+    Then AgentBoard atomically removes only that Project, its Backlog, Sprints, Features, reports, receipts, and audit history
+    And every other Project and its workspace remain unchanged
+    And missing, mismatched, conflicting, or CSRF-invalid requests delete nothing
     And the status is "completed"
 
   Scenario: Login-free loopback browser
@@ -423,6 +431,7 @@ Feature: Browser v0 local project workspace
     Given the persistence foundation contains durable Project, Feature, Sprint, and audit records
     When the owner opens a project in the browser
     Then Backlog, Sprint, Feature detail, Approvals, and Reports show only the selected Project's durable state
+    And each Project has its own Backlog and Sprint membership independent of every other Project
     And the active Sprint view has Ready for Engineering, Working, In Review, Human Review, and Done columns
     And Done combines merge-ready and completed current-Sprint Features without changing their durable states
     And the same route is labeled Board only when no Sprint is active

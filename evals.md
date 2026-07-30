@@ -43,14 +43,18 @@ pass/fail results; this document does not record transient statuses.
 - Test mapping: `tests/test_browser_persistence_core.py` exercises constraints directly, including unsafe-key upgrade preflight, orphan insertion, and the active-Sprint partial unique index, and asserts rollback leaves the database usable.
 
 - Name: Atomic audit history
-- Description: Each successful state-changing use case and its structured AuditEvent commit in one transaction, while failed commands persist neither partial state nor an audit record.
+- Description: Each successful state-changing use case that retains its Project and its structured AuditEvent commit in one transaction, while failed commands persist neither partial state nor an audit record; confirmed Project deletion instead removes the complete Project graph and its audit history in one transaction.
 - Test mapping: `tests/test_browser_application.py` uses failure-injecting unit-of-work fakes, while `tests/test_browser_persistence_core.py` and `tests/test_browser_views.py` inject database transaction failures and prove Project version, rank, receipt, and audit writes roll back together; corresponds to acceptance eval 32.
 
 ## Browser v0 application
 
 - Name: Browser Project creation
-- Description: The Projects catalog accepts a Project key, display name, repository URL, and default branch; valid CSRF-protected submissions atomically create one isolated Project and open its Backlog, while invalid, ambiguous, duplicate, or conflicting submissions create nothing and return a safe form error.
-- Test mapping: `tests/test_browser_web.py` and `tests/test_browser_web_edges.py` cover form availability, successful redirect and persistence, CSRF rejection, escaped value preservation, typed validation, duplicate-key conflicts, bounded parsing, and ambiguous fields; corresponds to acceptance eval 37.
+- Description: The Projects catalog initially exposes a plus control instead of creation fields; activating it reveals the Project key, display name, repository URL, and default branch fields, while validation errors reopen the disclosure with safe preserved values. Valid CSRF-protected submissions atomically create one isolated Project and open its Backlog.
+- Test mapping: `tests/test_browser_web.py` and `tests/test_browser_web_edges.py` cover collapsed disclosure markup, successful redirect and persistence, CSRF rejection, escaped value preservation, typed validation, duplicate-key conflicts, bounded parsing, and ambiguous fields; corresponds to acceptance eval 37.
+
+- Name: Browser Project deletion
+- Description: A two-step catalog confirmation deletes one exact Project and its complete durable graph, while every other Project, Backlog, and Sprint remains unchanged; missing, mismatched, conflicting, failed-commit, and CSRF-invalid requests delete nothing.
+- Test mapping: `tests/test_browser_application.py`, `tests/test_browser_persistence_core.py`, and `tests/test_browser_web.py` cover exact-key confirmation, graph removal, restart persistence, project isolation, CSRF rejection, unknown Projects, and atomic rollback; corresponds to acceptance eval 38.
 
 - Name: Login-free loopback browser boundary
 - Description: Project routes always open without authentication on supported loopback bindings; no password-authentication surface exists, while signed CSRF sessions, session expiry, bounded mutation-form parsing, strict cookies, host checks, and browser security headers protect mutations and the local application boundary.
@@ -61,7 +65,7 @@ pass/fail results; this document does not record transient statuses.
 - Test mapping: `tests/test_browser_cli.py` seeds a file-backed SQLite database, renders every browser view without login, verifies representative content, and proves a repeated seed leaves the exact dataset unchanged.
 
 - Name: Project-scoped browser navigation
-- Description: The Project selector and every Project route render only the selected Project's durable records; the engineering route is labeled Sprint while a Sprint is active and Board otherwise; unknown and cross-Project Feature URLs do not expose another Project.
+- Description: The Project selector and every Project route render only the selected Project's durable records, Backlog, and Sprint membership; the engineering route is labeled Sprint while that Project has an active Sprint and Board otherwise; unknown and cross-Project Feature URLs do not expose another Project.
 - Test mapping: `tests/test_browser_views.py`, `tests/test_browser_web.py`, and `tests/test_browser_web_edges.py` cover deterministic Project selection, context-sensitive navigation labels, page navigation, empty states, escaped content, typed not-found behavior, and isolation; corresponds to acceptance evals 4 and 35.
 
 - Name: Current Sprint and future-backlog presentation

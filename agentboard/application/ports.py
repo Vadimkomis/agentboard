@@ -25,6 +25,8 @@ class ProjectRepository(Protocol):
 
     async def add(self, project: Project) -> Project: ...
 
+    async def delete(self, project_id: int) -> bool: ...
+
     async def increment_version(
         self,
         project_id: int,

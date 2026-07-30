@@ -3,7 +3,7 @@
 from agentboard.application.backlogs import ListProjectBacklog, ReorderProjectBacklog
 from agentboard.application.demo import DEMO_PROJECT_KEY, SeedDemoWorkspace
 from agentboard.application.features import CreateFeature
-from agentboard.application.projects import CreateProject, GetProject, ListProjects
+from agentboard.application.projects import CreateProject, DeleteProject, GetProject, ListProjects
 from agentboard.application.sprints import (
     AddFeatureToSprint,
     CreatePlannedSprint,
@@ -29,6 +29,7 @@ __all__ = [
     "CreatePlannedSprint",
     "CreateProject",
     "DEMO_PROJECT_KEY",
+    "DeleteProject",
     "GetActiveSprint",
     "GetProjectFeature",
     "GetProject",

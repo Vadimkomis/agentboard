@@ -8,7 +8,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import update
+from sqlalchemy import text, update
 
 from agentboard.application import (
     AddFeatureToSprint,
@@ -310,6 +310,12 @@ async def test_project_catalog_exposes_creation_form_and_creates_project(
     backlog = await web_client.get("/projects/NEW/backlog")
     refreshed_catalog = await web_client.get("/projects")
 
+    disclosure = '<details class="project-create" data-project-create-disclosure>'
+    assert disclosure in catalog.text
+    assert '<summary class="project-create__toggle"' in catalog.text
+    assert 'aria-label="Add project"' in catalog.text
+    assert "data-project-create-fields" in catalog.text
+    assert catalog.text.index(disclosure) < catalog.text.index('action="/projects"')
     assert 'action="/projects"' in catalog.text
     assert 'name="key"' in catalog.text
     assert 'name="name"' in catalog.text
@@ -369,12 +375,115 @@ async def test_project_creation_renders_validation_and_duplicate_errors(
     )
 
     assert invalid.status_code == 400
+    assert '<details class="project-create" data-project-create-disclosure open>' in invalid.text
     assert "letters, numbers, hyphens, and underscores" in invalid.text
     assert 'value="INVALID/KEY"' in invalid.text
     assert 'value="&lt;Unsafe name&gt;"' in invalid.text
     assert "<Unsafe name>" not in invalid.text
     assert duplicate.status_code == 409
     assert "Project key &#39;AB&#39; already exists." in duplicate.text
+
+
+async def test_project_deletion_requires_confirmation_and_removes_only_its_workspace(
+    web_client: httpx.AsyncClient,
+) -> None:
+    catalog = await web_client.get("/projects")
+    csrf = _hidden_value(catalog.text, "csrf_token")
+
+    rejected = await web_client.post(
+        "/projects/AB/delete",
+        data={"confirmation_key": "AB"},
+    )
+    missing_confirmation = await web_client.post(
+        "/projects/AB/delete",
+        data={"csrf_token": csrf},
+    )
+    mismatched = await web_client.post(
+        "/projects/AB/delete",
+        data={"csrf_token": csrf, "confirmation_key": "TJ"},
+    )
+    missing_project = await web_client.post(
+        "/projects/MISSING/delete",
+        data={"csrf_token": csrf, "confirmation_key": "MISSING"},
+    )
+    preserved = await web_client.get("/projects/AB/backlog")
+    deleted = await web_client.post(
+        "/projects/AB/delete",
+        data={"csrf_token": csrf, "confirmation_key": "AB"},
+        follow_redirects=False,
+    )
+    deleted_backlog = await web_client.get("/projects/AB/backlog")
+    other_backlog = await web_client.get("/projects/TJ/backlog")
+    refreshed_catalog = await web_client.get("/projects")
+
+    assert 'action="/projects/AB/delete"' in catalog.text
+    assert 'data-project-delete-confirmation="AB"' in catalog.text
+    assert rejected.status_code == 403
+    assert missing_confirmation.status_code == 400
+    assert mismatched.status_code == 400
+    assert "confirmation did not match" in mismatched.text
+    assert missing_project.status_code == 404
+    assert preserved.status_code == 200
+    assert deleted.status_code == 303
+    assert deleted.headers["location"] == "/projects"
+    assert deleted_backlog.status_code == 404
+    assert other_backlog.status_code == 200
+    assert "PROJECT_B_MUST_NOT_LEAK" in other_backlog.text
+    assert "Trail Journal" in refreshed_catalog.text
+    assert 'href="/projects/AB/backlog"' not in refreshed_catalog.text
+
+
+async def test_project_deletion_conflict_preserves_the_project(
+    seeded_web_path: Path,
+    web_client: httpx.AsyncClient,
+) -> None:
+    database = Database(seeded_web_path)
+    try:
+        async with database.session() as session:
+            await session.execute(
+                text(
+                    """
+                    CREATE TRIGGER reject_browser_project_delete
+                    BEFORE DELETE ON projects
+                    BEGIN
+                        SELECT RAISE(ABORT, 'injected browser delete failure');
+                    END
+                    """
+                )
+            )
+            await session.commit()
+    finally:
+        await database.dispose()
+    catalog = await web_client.get("/projects")
+    csrf = _hidden_value(catalog.text, "csrf_token")
+
+    response = await web_client.post(
+        "/projects/AB/delete",
+        data={"csrf_token": csrf, "confirmation_key": "AB"},
+    )
+    preserved = await web_client.get("/projects/AB/backlog")
+
+    assert response.status_code == 409
+    assert "conflicts with concurrently persisted state" in response.text
+    assert preserved.status_code == 200
+
+
+async def test_each_project_has_an_isolated_backlog_and_sprint_view(
+    web_client: httpx.AsyncClient,
+) -> None:
+    first_backlog = await web_client.get("/projects/AB/backlog")
+    second_backlog = await web_client.get("/projects/TJ/backlog")
+    first_sprint = await web_client.get("/projects/AB/board")
+    second_board = await web_client.get("/projects/TJ/board")
+
+    assert "Current sprint item" in first_backlog.text
+    assert "PROJECT_B_MUST_NOT_LEAK" not in first_backlog.text
+    assert "PROJECT_B_MUST_NOT_LEAK" in second_backlog.text
+    assert "Current sprint item" not in second_backlog.text
+    assert "<h1>Sprint</h1>" in first_sprint.text
+    assert "Current sprint item" in first_sprint.text
+    assert "<h1>Board</h1>" in second_board.text
+    assert "Current sprint item" not in second_board.text
 
 
 async def test_backlog_renders_current_sprint_before_future_work_without_leakage(

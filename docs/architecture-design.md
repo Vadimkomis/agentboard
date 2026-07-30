@@ -249,9 +249,12 @@ Each selected Project has three primary pages:
    labeled Board only when no Sprint is active.
 3. **Approvals** — design and PR decisions waiting for the owner.
 
-The Projects catalog creates an isolated Project through the same atomic
+The Projects catalog initially shows a plus control and reveals creation fields
+only on request. It creates an isolated Project through the same atomic
 application command as the CLI, with bounded form parsing, CSRF validation, and
-typed validation or conflict errors.
+typed validation or conflict errors. A separate two-step, exact-key
+confirmation atomically deletes one Project graph while preserving every other
+Project's Backlog and Sprint.
 
 Backlog keeps completed current-Sprint work in its compact Done section. The
 Sprint view combines merge-ready and completed work in its Done column.
@@ -269,8 +272,10 @@ button and stored in the browser.
 - Treat `review_base_url` as separate from the listen address. Validate it at
   startup before enabling phone notifications.
 - Run under a dedicated unprivileged operating-system account where practical.
-- Use signed browser sessions, CSRF protection, idempotency keys, and optimistic
-  record versions. The session binds CSRF state and does not authenticate users.
+- Use signed browser sessions and CSRF protection for every mutation, plus
+  idempotency keys and optimistic record versions when an existing ranked or
+  versioned record remains after the mutation. The session binds CSRF state and
+  does not authenticate users.
 - Keep secrets outside SQLite and project artifacts.
 - Resolve all filesystem paths beneath the configured project root.
 

@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import cast
 
-from sqlalchemy import case, func, or_, select, update
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.base import Executable
@@ -65,6 +65,22 @@ class SqlAlchemyProjectRepository:
         await _flush(self._session)
         project.id = record.id
         return project
+
+    async def delete(self, project_id: int) -> bool:
+        await _execute_write(
+            self._session,
+            delete(AuditEventRecord).where(AuditEventRecord.project_id == project_id),
+        )
+        statement = (
+            delete(ProjectRecord)
+            .where(ProjectRecord.id == project_id)
+            .returning(ProjectRecord.id)
+            .execution_options(synchronize_session=False)
+        )
+        try:
+            return await self._session.scalar(statement) is not None
+        except (IntegrityError, OperationalError) as error:
+            raise_write_conflict(error)
 
     async def increment_version(
         self,
