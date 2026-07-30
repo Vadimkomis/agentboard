@@ -657,6 +657,24 @@ async def test_direct_project_creation_handler_covers_success_and_validation(
 
 
 @pytest.mark.asyncio
+async def test_direct_project_deletion_handler_covers_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, _future, _workspace, _detail, _approval, _report = _view_models()
+    claims = CsrfSession(csrf_token="direct-csrf", issued_at=1, expires_at=2)
+    app = create_app(_settings(tmp_path / "direct-project-delete.db"))
+    body = b"csrf_token=direct-csrf&confirmation_key=AB"
+
+    monkeypatch.setattr(web_app, "_uow_factory", lambda _request: object())
+    monkeypatch.setattr(web_app, "DeleteProject", lambda _factory: _ImmediateQuery(project))
+    deleted = await web_app._delete_project(_form_request(app, body), "AB", claims)
+
+    assert deleted.status_code == 303
+    assert deleted.headers["location"] == "/projects"
+
+
+@pytest.mark.asyncio
 async def test_direct_reorder_handler_accepts_the_exact_future_backlog(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
